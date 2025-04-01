@@ -10,6 +10,8 @@ class MySlam : public MySlamCommon
 {
 public:
         explicit MySlam(rclcpp::NodeOptions options);
+protected:
+        void laserCallback(sensor_msgs::msg::LaserScan::ConstSharedPtr scan) override;
 };
 
 } // namespace myslam

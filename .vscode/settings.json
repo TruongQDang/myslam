@@ -63,6 +63,7 @@
                 "__verbose_abort": "cpp",
                 "ios": "cpp",
                 "locale": "cpp",
-                "print": "cpp"
+                "print": "cpp",
+                "chrono": "cpp"
         }
 }

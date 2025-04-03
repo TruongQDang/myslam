@@ -13,6 +13,7 @@
 #include "tf2_ros/message_filter.h"
 #include "nav_msgs/msg/occupancy_grid.hpp"
 #include "message_filters/subscriber.h"
+#include "nav_msgs/srv/get_map.hpp"
 
 #include "myslam/myslam_types.hpp"
 #include "myslam/pose_helper.hpp"
@@ -50,6 +51,17 @@ protected:
         bool shouldProcessScan(
                 const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan,
                 const Pose2 &pose);
+        laser_utils::LocalizedRangeScan *addScan(const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan,
+                     Pose2 &pose);
+        tf2::Stamped<tf2::Transform> setTransformFromPoses(
+                const Pose2 &corrected_pose,
+                const Pose2 &odom_pose, const rclcpp::Time &t,
+                const bool &update_reprocessing_transform);
+        void publishPose(
+                const Pose2 &pose,
+                const Eigen::Matrix3d &cov,
+                const rclcpp::Time &t);
+        bool updateMap();
 
         // callbacks
         virtual void laserCallback(sensor_msgs::msg::LaserScan::ConstSharedPtr scan) = 0;
@@ -61,14 +73,20 @@ protected:
 
         // internal state
         std::vector<std::unique_ptr<boost::thread>> threads_;
+        tf2::Transform map_to_odom_;
+        boost::mutex map_to_odom_mutex_, mapper_mutex_, pose_mutex_;
+        nav_msgs::srv::GetMap::Response map_;
 
         // ROS stuff
         std::unique_ptr<tf2_ros::Buffer> tf_;
         std::unique_ptr<tf2_ros::TransformListener> tf_listener_;
         std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
+        std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<
+                geometry_msgs::msg::PoseWithCovarianceStamped>>
+                pose_publisher_;
         std::unique_ptr<message_filters::Subscriber<sensor_msgs::msg::LaserScan,
                                                     rclcpp_lifecycle::LifecycleNode>>
-                scan_filter_sub_;
+                scan_filter_subcriber_;
         std::unique_ptr<tf2_ros::MessageFilter<sensor_msgs::msg::LaserScan>> scan_filter_;
 
         // storage for ROS parameters
@@ -77,6 +95,9 @@ protected:
         rclcpp::Duration transform_timeout_, minimum_time_interval_;
         int throttle_scans_, scan_queue_size_;
 
+        double resolution_;
+        double position_covariance_scale_;
+        double yaw_covariance_scale_; 
         bool first_measurement_;
 };
 

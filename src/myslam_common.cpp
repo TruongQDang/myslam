@@ -155,13 +155,13 @@ void MySlamCommon::setParams()
 void MySlamCommon::setROSInterfaces()
 /*****************************************************************************/
 {
-        scan_filter_sub_ =
+        scan_filter_subcriber_ =
             std::make_unique<message_filters::Subscriber<sensor_msgs::msg::LaserScan,
                                                          rclcpp_lifecycle::LifecycleNode>>(
                 shared_from_this().get(), scan_topic_, rmw_qos_profile_sensor_data);
         scan_filter_ =
             std::make_unique<tf2_ros::MessageFilter<sensor_msgs::msg::LaserScan>>(
-                *scan_filter_sub_, *tf_, odom_frame_, scan_queue_size_,
+                *scan_filter_subcriber_, *tf_, odom_frame_, scan_queue_size_,
                 get_node_logging_interface(), get_node_clock_interface(),
                 tf2::durationFromSec(transform_timeout_.seconds()));
         scan_filter_->registerCallback(
@@ -192,7 +192,38 @@ void MySlamCommon::publishTransformLoop(const double &transform_publish_period)
 void MySlamCommon::publishVisualizations()
 /*****************************************************************************/
 {
-        
+        nav_msgs::msg::OccupancyGrid &og = map_.map;
+        og.info.resolution = resolution_;
+        og.info.origin.position.x = 0.0;
+        og.info.origin.position.y = 0.0;
+        og.info.origin.position.z = 0.0;
+        og.info.origin.orientation.x = 0.0;
+        og.info.origin.orientation.y = 0.0;
+        og.info.origin.orientation.z = 0.0;
+        og.info.origin.orientation.w = 1.0;
+        og.header.frame_id = map_frame_;
+
+        double map_update_interval = 10.0;
+        if (!this->has_parameter("map_update_interval"))
+        {
+                this->declare_parameter("map_update_interval", map_update_interval);
+        }
+        map_update_interval = this->get_parameter("map_update_interval").as_double();
+        rclcpp::Rate r(1.0 / map_update_interval);
+
+        while (rclcpp::ok())
+        {
+                boost::this_thread::interruption_point();
+                updateMap();
+
+                r.sleep();
+        }
+}
+
+/*****************************************************************************/
+bool MySlamCommon::updateMap()
+/*****************************************************************************/
+{
 }
 
 /*****************************************************************************/
@@ -238,6 +269,99 @@ bool MySlamCommon::shouldProcessScan(
         last_scan_time = scan->header.stamp;
 
         return true;
+}
+
+/*****************************************************************************/
+laser_utils::LocalizedRangeScan *MySlamCommon::addScan(
+        const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan,
+        Pose2 &pose)
+/*****************************************************************************/
+{
+        laser_utils::LocalizedRangeScan *range_scan;
+        Eigen::Matrix3d covariance;
+        covariance.setIdentity();
+
+        bool processed = false;
+        processed = mapper_->process(range_scan, &covariance);
+
+        // if sucessfully processed, create odom2map transform and add scan to storage
+        if (processed) {
+
+        }
+
+        return range_scan;
+}
+
+/*****************************************************************************/
+tf2::Stamped<tf2::Transform> MySlamCommon::setTransformFromPoses(
+        const Pose2 &corrected_pose,
+        const Pose2 &odom_pose, const rclcpp::Time &t,
+        const bool &update_reprocessing_transform)
+/*****************************************************************************/
+{
+        // Compute the map->odom transform
+        tf2::Stamped<tf2::Transform> odom_to_map;
+        tf2::Quaternion q(0., 0., 0., 1.0);
+        q.setRPY(0., 0., corrected_pose.getHeading());
+        tf2::Stamped<tf2::Transform> base_to_map(
+            tf2::Transform(q, tf2::Vector3(corrected_pose.getX(),
+                                           corrected_pose.getY(), 0.0))
+                .inverse(),
+            tf2_ros::fromMsg(t), base_frame_);
+        try
+        {
+                geometry_msgs::msg::TransformStamped base_to_map_msg, odom_to_map_msg;
+
+                // https://github.com/ros2/geometry2/issues/176
+                // not working for some reason...
+                // base_to_map_msg = tf2::toMsg(base_to_map);
+                base_to_map_msg.header.stamp = tf2_ros::toMsg(base_to_map.stamp_);
+                base_to_map_msg.header.frame_id = base_to_map.frame_id_;
+                base_to_map_msg.transform.translation.x = base_to_map.getOrigin().getX();
+                base_to_map_msg.transform.translation.y = base_to_map.getOrigin().getY();
+                base_to_map_msg.transform.translation.z = base_to_map.getOrigin().getZ();
+                base_to_map_msg.transform.rotation = tf2::toMsg(base_to_map.getRotation());
+
+                odom_to_map_msg = tf_->transform(base_to_map_msg, odom_frame_);
+                tf2::fromMsg(odom_to_map_msg, odom_to_map);
+        }
+        catch (tf2::TransformException &e)
+        {
+                RCLCPP_ERROR(get_logger(), "Transform from base_link to odom failed: %s",
+                             e.what());
+                return odom_to_map;
+        }
+
+        // set map to odom for our transformation thread to publish
+        boost::mutex::scoped_lock lock(map_to_odom_mutex_);
+        map_to_odom_ = tf2::Transform(tf2::Quaternion(odom_to_map.getRotation()),
+                                      tf2::Vector3(odom_to_map.getOrigin()))
+                           .inverse();
+
+        return odom_to_map;
+}
+
+void MySlamCommon::publishPose(
+        const Pose2 &pose,
+        const Eigen::Matrix3d &cov,
+        const rclcpp::Time &t)
+{
+        geometry_msgs::msg::PoseWithCovarianceStamped pose_msg;
+        pose_msg.header.stamp = t;
+        pose_msg.header.frame_id = map_frame_;
+
+        tf2::Quaternion q(0., 0., 0., 1.0);
+        q.setRPY(0., 0., pose.getHeading());
+        tf2::Transform transform(q, tf2::Vector3(pose.getX(), pose.getY(), 0.0));
+        tf2::toMsg(transform, pose_msg.pose.pose);
+
+        pose_msg.pose.covariance[0] = cov(0, 0) * position_covariance_scale_; // x
+        pose_msg.pose.covariance[1] = cov(0, 1) * position_covariance_scale_; // xy
+        pose_msg.pose.covariance[6] = cov(1, 0) * position_covariance_scale_; // xy
+        pose_msg.pose.covariance[7] = cov(1, 1) * position_covariance_scale_; // y
+        pose_msg.pose.covariance[35] = cov(2, 2) * yaw_covariance_scale_;     // yaw
+
+        pose_publisher_->publish(pose_msg);
 }
 
 } // namespace myslam

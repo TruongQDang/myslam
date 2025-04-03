@@ -50,7 +50,7 @@ public:
          * Returns the x-coordinate
          * @return the x-coordinate of the pose
          */
-        inline double get_x() const
+        inline double getX() const
         {
                 return position_.x();
         }
@@ -59,7 +59,7 @@ public:
          * Returns the y-coordinate
          * @return the y-coordinate of the pose
          */
-        inline double get_y() const
+        inline double getY() const
         {
                 return position_.y();
         }
@@ -68,7 +68,7 @@ public:
          * Returns the heading of the pose (in radians)
          * @return the heading of the pose
          */
-        inline double get_heading() const
+        inline double getHeading() const
         {
                 return heading_;
         }
@@ -95,7 +95,6 @@ private:
         Eigen::Vector2d position_;
         double heading_;
 };
-
 
 typedef rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn CallbackReturn;
 

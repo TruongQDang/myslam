@@ -25,10 +25,8 @@ void MySlam::laserCallback(sensor_msgs::msg::LaserScan::ConstSharedPtr scan)
         }
 
         if (shouldProcessScan(scan, odom_pose)) {
+                addScan(scan, odom_pose);
         }
-           
-
-
 }
 
 } // namespace myslam

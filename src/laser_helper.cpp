@@ -12,7 +12,7 @@ LaserRangeFinder::LaserRangeFinder(
 {        
 }
 
-bool LaserRangeFinder::getLaserTransform(const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan)
+bool LaserRangeFinder::makeLaser(const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan)
 {
         laser_frame_ = scan->header.frame_id;
 
@@ -24,6 +24,13 @@ bool LaserRangeFinder::getLaserTransform(const sensor_msgs::msg::LaserScan::Cons
         laser_pose_ = tf_->transform(laser_ident, base_frame_);
 
         return true;
+}
+
+///////////////////////////////////////////////////////////////////
+
+LocalizedRangeScan::LocalizedRangeScan(const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan)
+{
+
 }
 
 } // namespace laser_utils

@@ -11,6 +11,25 @@ MySlamCommon::MySlamCommon(rclcpp::NodeOptions options)
         
 /*****************************************************************************/
 {
+        int stack_size = 40'000'000;
+        {
+                rcl_interfaces::msg::ParameterDescriptor descriptor;
+                descriptor.read_only = true;
+                this->declare_parameter(
+                    "stack_size_to_use", rclcpp::ParameterType::PARAMETER_INTEGER, descriptor);
+                if (this->get_parameter("stack_size_to_use", stack_size))
+                {
+                        RCLCPP_INFO(get_logger(), "Node using stack size %i", (int)stack_size);
+                        const rlim_t max_stack_size = stack_size;
+                        struct rlimit stack_limit;
+                        getrlimit(RLIMIT_STACK, &stack_limit);
+                        if (stack_limit.rlim_cur < stack_size)
+                        {
+                                stack_limit.rlim_cur = stack_size;
+                        }
+                        setrlimit(RLIMIT_STACK, &stack_limit);
+                }
+        }
 }
 
 /*****************************************************************************/
@@ -19,11 +38,28 @@ CallbackReturn MySlamCommon::on_configure(const rclcpp_lifecycle::State &)
 {
         RCLCPP_INFO(get_logger(), "Configuring...");
 
+        first_measurement_ = true;
+        mapper_ = std::make_unique<mapper_utils::Mapper>();
+
         setParams();
+
+        double tmp_val = 30.0;
+        if (!this->has_parameter("tf_buffer_duration"))
+        {
+                this->declare_parameter("tf_buffer_duration", tmp_val);
+        }
+        tmp_val = this->get_parameter("tf_buffer_duration").as_double();
+        tf_ = std::make_unique<tf2_ros::Buffer>(this->get_clock(),
+                                                tf2::durationFromSec(tmp_val));
+        auto timer_interface = std::make_shared<tf2_ros::CreateTimerROS>(
+                get_node_base_interface(),
+                get_node_timers_interface());
+        tf_->setCreateTimerInterface(timer_interface);
 
         tf_listener_ = std::make_unique<tf2_ros::TransformListener>(*tf_);
         tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(shared_from_this());
-        pose_helper_ = std::make_unique<pose_utils::GetPoseHelper>(tf_.get(), base_frame_, odom_frame_);
+        pose_helper_ = std::make_unique<pose_utils::PoseHelper>(tf_.get());
+        laser_ = std::make_unique<laser_utils::LaserRangeFinder>(shared_from_this(), tf_.get(), base_frame_);
         
         return CallbackReturn::SUCCESS;
 }
@@ -36,10 +72,29 @@ CallbackReturn MySlamCommon::on_activate(const rclcpp_lifecycle::State &)
 
         setROSInterfaces();
 
-        double transform_publish_period = 0.05; // default value
+        map_publisher_->on_activate();
+        map_metadata_publisher_->on_activate();
+        pose_publisher_->on_activate();
+        reprocessing_transform_.setIdentity();
+
+        double transform_publish_period = 0.05;
+        if (!this->has_parameter("transform_publish_period"))
+        {
+                this->declare_parameter("transform_publish_period", transform_publish_period);
+        }
+        transform_publish_period = this->get_parameter("transform_publish_period").as_double();
+
         threads_.push_back(
-            std::make_unique<boost::thread>([this, transform_publish_period]()
-                { this->publishTransformLoop(transform_publish_period); })
+            std::make_unique<boost::thread>(
+                [this, transform_publish_period]() { 
+                        this->publishTransformLoop(transform_publish_period); 
+                })
+        );
+
+        threads_.push_back(std::make_unique<boost::thread>(
+                [this]() {
+                        this->publishVisualizations();
+                })
         );
 
         return CallbackReturn::SUCCESS;
@@ -51,6 +106,24 @@ CallbackReturn MySlamCommon::on_deactivate(const rclcpp_lifecycle::State &)
 {
         RCLCPP_INFO(get_logger(), "Deactivating...");
 
+        for (int i = 0; i != threads_.size(); i++)
+        {
+                threads_[i]->interrupt();
+                threads_[i]->join();
+                threads_[i].reset();
+        }
+        threads_.clear();
+        map_publisher_->on_deactivate();
+        map_metadata_publisher_->on_deactivate();
+        pose_publisher_->on_deactivate();
+
+        // reset interfaces
+        scan_filter_.reset();
+        scan_filter_subscriber_.reset();
+        map_metadata_publisher_.reset();
+        map_publisher_.reset();
+        pose_publisher_.reset();
+
         return CallbackReturn::SUCCESS;
 }
 
@@ -61,6 +134,12 @@ CallbackReturn MySlamCommon::on_cleanup(const rclcpp_lifecycle::State &)
         RCLCPP_INFO(get_logger(), "Cleaning up...");
 
         tf_broadcaster_.reset();
+        mapper_.reset();
+        pose_helper_.reset();
+
+        tf_broadcaster_.reset();
+        tf_listener_.reset();
+        tf_.reset();
 
         return CallbackReturn::SUCCESS;
 }
@@ -71,8 +150,6 @@ CallbackReturn MySlamCommon::on_shutdown(const rclcpp_lifecycle::State &)
 {
         RCLCPP_INFO(get_logger(), "Shutting down...");
 
-        tf_broadcaster_.reset();
-
         return CallbackReturn::SUCCESS;
 }
 
@@ -80,13 +157,33 @@ CallbackReturn MySlamCommon::on_shutdown(const rclcpp_lifecycle::State &)
 MySlamCommon::~MySlamCommon()
 /*****************************************************************************/
 {
+        for (int i = 0; i != threads_.size(); i++)
+        {
+                threads_[i]->interrupt();
+                threads_[i]->join();
+                threads_[i].reset();
+        }
+        threads_.clear();
+
+        mapper_.reset();
+        pose_helper_.reset();
+       
+        scan_filter_.reset();
+        scan_filter_subscriber_.reset();
+        map_publisher_.reset();
+        map_metadata_publisher_.reset();
+        pose_publisher_.reset();
+
         tf_broadcaster_.reset();
+        tf_listener_.reset();
+        tf_.reset();
 }
 
 /*****************************************************************************/
 void MySlamCommon::setParams()
 /*****************************************************************************/
 {
+        map_to_odom_.setIdentity();
         odom_frame_ = std::string("odom");
         if (!this->has_parameter("odom_frame"))
         {
@@ -108,12 +205,40 @@ void MySlamCommon::setParams()
         }
         base_frame_ = this->get_parameter("base_frame").as_string();
 
-        scan_topic_ = std::string("/lidar");
+        resolution_ = 0.05;
+        if (!this->has_parameter("resolution"))
+        {
+                this->declare_parameter("resolution", resolution_);
+        }
+        resolution_ = this->get_parameter("resolution").as_double();
+        if (resolution_ <= 0.0)
+        {
+                RCLCPP_WARN(this->get_logger(),
+                            "You've set resolution of map to be zero or negative,"
+                            "this isn't allowed so it will be set to default value 0.05.");
+                resolution_ = 0.05;
+        }
+
+        map_name_ = std::string("/map");
+        if (!this->has_parameter("map_name"))
+        {
+                this->declare_parameter("map_name", map_name_);
+        }
+        map_name_ = this->get_parameter("map_name").as_string();
+
+        scan_topic_ = std::string("/scan");
         if (!this->has_parameter("scan_topic"))
         {
                 this->declare_parameter("scan_topic", scan_topic_);
         }
         scan_topic_ = this->get_parameter("scan_topic").as_string();
+
+        scan_queue_size_ = 1;
+        if (!this->has_parameter("scan_queue_size"))
+        {
+                this->declare_parameter("scan_queue_size", scan_queue_size_);
+        }
+        scan_queue_size_ = this->get_parameter("scan_queue_size").as_int();
 
         throttle_scans_ = 1;
         if (!this->has_parameter("throttle_scans"))
@@ -128,13 +253,20 @@ void MySlamCommon::setParams()
                             "this isn't allowed so it will be set to default value 1.");
                 throttle_scans_ = 1;
         }
-
-        scan_queue_size_ = 1;
-        if (!this->has_parameter("scan_queue_size"))
+        position_covariance_scale_ = 1.0;
+        if (!this->has_parameter("position_covariance_scale"))
         {
-                this->declare_parameter("scan_queue_size", scan_queue_size_);
+                this->declare_parameter("position_covariance_scale", position_covariance_scale_);
         }
-        scan_queue_size_ = this->get_parameter("scan_queue_size").as_int();
+        position_covariance_scale_ = this->get_parameter("position_covariance_scale").as_double();
+
+        yaw_covariance_scale_ = 1.0;
+        if (!this->has_parameter("yaw_covariance_scale"))
+        {
+                this->declare_parameter("yaw_covariance_scale", yaw_covariance_scale_);
+        }
+        yaw_covariance_scale_ = this->get_parameter("yaw_covariance_scale").as_double();
+
 
         double tmp_val = 0.5;
         if (!this->has_parameter("transform_timeout"))
@@ -155,15 +287,27 @@ void MySlamCommon::setParams()
 void MySlamCommon::setROSInterfaces()
 /*****************************************************************************/
 {
-        scan_filter_subcriber_ =
-            std::make_unique<message_filters::Subscriber<sensor_msgs::msg::LaserScan,
-                                                         rclcpp_lifecycle::LifecycleNode>>(
-                shared_from_this().get(), scan_topic_, rmw_qos_profile_sensor_data);
+        pose_publisher_ = this->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>(
+                "pose", 10);
+        map_publisher_ = this->create_publisher<nav_msgs::msg::OccupancyGrid>(
+                map_name_, rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable());
+        map_metadata_publisher_ = this->create_publisher<nav_msgs::msg::MapMetaData>(
+                map_name_ + "_metadata",
+                rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable());
+        scan_filter_subscriber_ =
+                std::make_unique<message_filters::Subscriber<sensor_msgs::msg::LaserScan, rclcpp_lifecycle::LifecycleNode>>(
+                        shared_from_this().get(), 
+                        scan_topic_, 
+                        rmw_qos_profile_sensor_data);
         scan_filter_ =
-            std::make_unique<tf2_ros::MessageFilter<sensor_msgs::msg::LaserScan>>(
-                *scan_filter_subcriber_, *tf_, odom_frame_, scan_queue_size_,
-                get_node_logging_interface(), get_node_clock_interface(),
-                tf2::durationFromSec(transform_timeout_.seconds()));
+                std::make_unique<tf2_ros::MessageFilter<sensor_msgs::msg::LaserScan>>(
+                        *scan_filter_subscriber_, 
+                        *tf_, 
+                        odom_frame_, 
+                        scan_queue_size_,
+                        get_node_logging_interface(), 
+                        get_node_clock_interface(),
+                        tf2::durationFromSec(transform_timeout_.seconds()));
         scan_filter_->registerCallback(
             [this](const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan) {
                 this->laserCallback(scan);
@@ -174,17 +318,30 @@ void MySlamCommon::setROSInterfaces()
 void MySlamCommon::publishTransformLoop(const double &transform_publish_period)
 /*****************************************************************************/
 {
-        rclcpp::Rate rate(1.0 / transform_publish_period);
-        while (rclcpp::ok()) {
-                rclcpp::Time scan_timestamp = this->now();
-                geometry_msgs::msg::TransformStamped msg;
-                msg.transform.translation.x = 1.0;
-                msg.transform.translation.y = 2.0;
-                msg.transform.rotation.w = 1.0;
-                msg.header.frame_id = "odom";
-                msg.child_frame_id = "base_link";
-                tf_broadcaster_->sendTransform(msg);
-                rate.sleep();
+        if (transform_publish_period == 0)
+        {
+                return;
+        }
+
+        rclcpp::Rate r(1.0 / transform_publish_period);
+        while (rclcpp::ok())
+        {
+                boost::this_thread::interruption_point();
+                {
+                        boost::mutex::scoped_lock lock(map_to_odom_mutex_);
+                        rclcpp::Time scan_timestamp = scan_header_.stamp;
+                        // Avoid publishing tf with initial 0.0 scan timestamp
+                        if (scan_timestamp.seconds() > 0.0 && !scan_header_.frame_id.empty())
+                        {
+                                geometry_msgs::msg::TransformStamped msg;
+                                msg.transform = tf2::toMsg(map_to_odom_);
+                                msg.child_frame_id = odom_frame_;
+                                msg.header.frame_id = map_frame_;
+                                msg.header.stamp = scan_timestamp + transform_timeout_;
+                                tf_broadcaster_->sendTransform(msg);
+                        }
+                }
+                r.sleep();
         }
 }
 
@@ -224,6 +381,29 @@ void MySlamCommon::publishVisualizations()
 bool MySlamCommon::updateMap()
 /*****************************************************************************/
 {
+        if (!map_publisher_ || !map_publisher_->is_activated() || map_publisher_->get_subscription_count() == 0)
+        {
+                return true;
+        }
+        boost::mutex::scoped_lock lock(mapper_mutex_);
+        mapper_utils::OccupancyGrid *occ_grid = mapper_->getOccupancyGrid(resolution_);
+        if (!occ_grid)
+        {
+                return false;
+        }
+
+        mapper_utils::toNavMap(occ_grid, map_.map);
+
+        // publish map as current
+        map_.map.header.stamp = scan_header_.stamp;
+        map_publisher_->publish(
+            std::move(std::make_unique<nav_msgs::msg::OccupancyGrid>(map_.map)));
+        map_metadata_publisher_->publish(
+            std::move(std::make_unique<nav_msgs::msg::MapMetaData>(map_.map.info)));
+
+        delete occ_grid;
+        occ_grid = nullptr;
+        return true;
 }
 
 /*****************************************************************************/
@@ -274,10 +454,15 @@ bool MySlamCommon::shouldProcessScan(
 /*****************************************************************************/
 laser_utils::LocalizedRangeScan *MySlamCommon::addScan(
         const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan,
-        Pose2 &pose)
+        Pose2 &odom_pose)
 /*****************************************************************************/
 {
-        laser_utils::LocalizedRangeScan *range_scan;
+        laser_utils::LocalizedRangeScan *range_scan = getLocalizedRangeScan(scan, odom_pose);
+
+        // Add the localized range scan to the smapper
+        boost::mutex::scoped_lock lock(mapper_mutex_);
+        bool processed = false, update_reprocessing_transform = false;
+
         Eigen::Matrix3d covariance;
         covariance.setIdentity();
 
@@ -287,9 +472,18 @@ laser_utils::LocalizedRangeScan *MySlamCommon::addScan(
         // if sucessfully processed, create odom2map transform and add scan to storage
         if (processed) {
 
+                setTransformFromPoses(range_scan->getCorrectedPose(), odom_pose,
+                                      scan->header.stamp, update_reprocessing_transform);
+
+                publishPose(range_scan->getCorrectedPose(), covariance, scan->header.stamp);
+        }
+        else
+        {
+                delete range_scan;
+                range_scan = nullptr;
         }
 
-        return range_scan;
+        return range_scan;                
 }
 
 /*****************************************************************************/
@@ -341,10 +535,12 @@ tf2::Stamped<tf2::Transform> MySlamCommon::setTransformFromPoses(
         return odom_to_map;
 }
 
+/*****************************************************************************/
 void MySlamCommon::publishPose(
         const Pose2 &pose,
         const Eigen::Matrix3d &cov,
         const rclcpp::Time &t)
+/*****************************************************************************/
 {
         geometry_msgs::msg::PoseWithCovarianceStamped pose_msg;
         pose_msg.header.stamp = t;
@@ -362,6 +558,16 @@ void MySlamCommon::publishPose(
         pose_msg.pose.covariance[35] = cov(2, 2) * yaw_covariance_scale_;     // yaw
 
         pose_publisher_->publish(pose_msg);
+}
+
+/*****************************************************************************/
+laser_utils::LocalizedRangeScan *getLocalizedRangeScan(
+        const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan,
+        Pose2 &pose)
+/*****************************************************************************/
+{
+
+
 }
 
 } // namespace myslam

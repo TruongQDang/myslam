@@ -24,19 +24,48 @@ Mapper::Mapper(const NodeT &node)
 bool Mapper::process(laser_utils::LocalizedRangeScan *scan, Eigen::Matrix3d *covariance)
 {
 
-        if (scan == nullptr)
-                return false;
+        if (scan != nullptr) {
+                laser_utils::LocalizedRangeScan *last_scan = scan_manager_->getLastScan();
 
-        laser_utils::LocalizedRangeScan *last_scan = scan_manager_->getLastScan();
+                // if (m_Initialized == false)
+                // {
+                //         // initialize mapper with range threshold from device
+                //         Initialize(pLaserRangeFinder->GetRangeThreshold());
+                // }
 
-        // add scan to buffer and assign id
-        scan_manager_->addScan(scan);
+                // Matrix3 cov;
+                // cov.SetToIdentity();
 
-        scan_manager_->setLastScan(scan);
+                // // add scan to buffer and assign id
+                // m_pMapperSensorManager->AddScan(pScan);
 
-        return true;
+                // m_pMapperSensorManager->SetLastScan(pScan);
+
+                return true;
+        }
+
+        return false;
 }
 
+OccupancyGrid *Mapper::getOccupancyGrid(const double &resolution)
+{
+        OccupancyGrid *occ_grid = nullptr;
+        return OccupancyGrid::createFromScans(
+                getAllProcessedScans(),
+                resolution, (uint32_t)getParamMinPassThrough(), (double)getParamOccupancyThreshold());
+}
+
+const std::vector<laser_utils::LocalizedRangeScan *> Mapper::getAllProcessedScans() const
+{
+        std::vector<laser_utils::LocalizedRangeScan *> all_scans;
+
+        if (scan_manager_ != nullptr)
+        {
+                all_scans = scan_manager_->getAllScans();
+        }
+
+        return all_scans;
+}
 
 ///////////////////////////////////////////////////////////////////
 
@@ -49,5 +78,6 @@ OccupancyGrid::OccupancyGrid(
 {
         
 }
+
 
 } // namespace mapper_utils

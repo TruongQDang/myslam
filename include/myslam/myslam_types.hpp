@@ -91,6 +91,14 @@ public:
                 return (position_ - other_pose.position_).squaredNorm();
         }
 
+        /**
+         * Equality operator
+         */
+        inline bool operator==(const Pose2 &other) const
+        {
+                return position_ == other.position_ && heading_ == other.heading_;
+        }
+
 private:
         Eigen::Vector2d position_;
         double heading_;

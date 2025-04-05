@@ -4,6 +4,8 @@
 #include <unordered_map>
 
 #include "myslam/laser_helper.hpp"
+#include "nav_msgs/msg/occupancy_grid.hpp"
+#include "myslam/pose_helper.hpp"
 
 namespace mapper_utils
 {
@@ -11,6 +13,10 @@ namespace mapper_utils
 class Mapper;
 class ScanManager;
 class OccupancyGrid;
+
+inline void toNavMap(
+        const OccupancyGrid *occ_grid,
+        nav_msgs::msg::OccupancyGrid &map);
 
 class Mapper 
 {
@@ -47,11 +53,35 @@ public:
          */
         const std::vector<laser_utils::LocalizedRangeScan *> getAllProcessedScans() const;
 
+        // get occupancy grid from scans
+        OccupancyGrid *getOccupancyGrid(const double &resolution);
+
+        uint32_t getParamMinPassThrough()
+        {
+                return min_pass_through_;
+        }
+
+        double getParamOccupancyThreshold()
+        {
+                return occupancy_threshold_;
+        }
+
 private:
         ScanManager *scan_manager_;
         // parameters
         double minimum_travel_distance_;
         double minimum_travel_heading_;
+
+        ////////////////////////////////////////////////////////////
+        // NOTE: These two values are dependent on the resolution.  If the resolution is too small,
+        // then not many beams will hit the cell!
+
+        // Number of beams that must pass through a cell before it will be considered to be occupied
+        // or unoccupied.  This prevents stray beams from messing up the map.
+        uint32_t min_pass_through_;
+
+        // Minimum ratio of beams hitting cell to beams passing through cell to be marked as occupied
+        double occupancy_threshold_;
 };
 
 class ScanManager
@@ -59,6 +89,17 @@ class ScanManager
 public:
         ScanManager() 
         {
+        }
+
+        /**
+         * Gets all scans of all devices
+         * @return all scans of all devices
+         */
+        std::vector<laser_utils::LocalizedRangeScan *> getAllScans()
+        {
+                std::vector<laser_utils::LocalizedRangeScan *> scans;
+
+                return scans;
         }
 
         /**
@@ -148,17 +189,28 @@ public:
                 bool is_endpoint_valid,
                 bool do_update = false);
 
+        /**
+         * Gets the width of the grid
+         * @return width of the grid
+         */
+        inline int32_t getWidth() const
+        {
+                return width_;
+        }
+
+        /**
+         * Gets the height of the grid
+         * @return height of the grid
+         */
+        inline int32_t getHeight() const
+        {
+                return height_;
+        }
+
+
 private:
-        ////////////////////////////////////////////////////////////
-        // NOTE: These two values are dependent on the resolution.  If the resolution is too small,
-        // then not many beams will hit the cell!
-
-        // Number of beams that must pass through a cell before it will be considered to be occupied
-        // or unoccupied.  This prevents stray beams from messing up the map.
-        uint32_t *min_pass_through_;
-
-        // Minimum ratio of beams hitting cell to beams passing through cell to be marked as occupied
-        double *occupancy_threshold_;
+        int32_t width_;  // width of grid
+        int32_t height_; // height of grid
 };
 
 } // namespace mapper_utils

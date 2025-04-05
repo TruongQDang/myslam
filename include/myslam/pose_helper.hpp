@@ -5,50 +5,111 @@
 #include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
 #include "myslam/myslam_types.hpp"
 #include "tf2/utils.hpp"
+#include <cmath>
 
 namespace pose_utils
 {
 
 using namespace ::myslam_types;
-// helper to get the robots position
-class GetPoseHelper
+
+class PoseHelper
 {
 public:
-	GetPoseHelper(
-		tf2_ros::Buffer *tf,
-		const std::string & base_frame,
-		const std::string & odom_frame)
-	: tf_(tf), base_frame_(base_frame), odom_frame_(odom_frame)
+	PoseHelper(tf2_ros::Buffer *tf)
+	: tf_(tf)
 	{
 	}
 
-	bool getOdomPose(Pose2 &pose, const rclcpp::Time &t)
+	bool getPose(
+		Pose2 &pose, 
+		const rclcpp::Time &t, 
+		const std::string &from_frame, 
+		const std::string &to_frame)
 	{
-		geometry_msgs::msg::TransformStamped base_ident, odom_pose;
-		base_ident.header.stamp = t;
-		base_ident.header.frame_id = base_frame_;
-		base_ident.transform.rotation.w = 1.0;
-
-		try
-		{
-			odom_pose = tf_->transform(base_ident, odom_frame_);
-		}
-		catch (tf2::TransformException &e)
-		{
+		geometry_msgs::msg::TransformStamped tmp_pose;
+		try {
+			tmp_pose = tf_->lookupTransform(
+				to_frame,
+				from_frame,
+				t);
+		} catch (const tf2::TransformException &ex) {
 			return false;
 		}
 
-		const double yaw = tf2::getYaw(odom_pose.transform.rotation);
-		pose = Pose2(odom_pose.transform.translation.x,
-					  odom_pose.transform.translation.y, yaw);
+		const double yaw = tf2::getYaw(tmp_pose.transform.rotation);
+		pose = Pose2(tmp_pose.transform.translation.x,
+					  tmp_pose.transform.translation.y, yaw);
 
 		return true;
 	}
-
 private:
 	tf2_ros::Buffer *tf_;
-	std::string base_frame_, odom_frame_;
-};
+}; // PoseHelper
+
+/**
+ * Implementation of a Pose2 transform
+ */
+class Transform
+{
+public:
+	/**
+	 * Constructs a transformation from the origin to the given pose
+	 * @param rPose pose
+	 */
+	Transform(const Pose2 &rPose) // NOLINT
+	{
+		SetTransform(Pose2(), rPose);
+	}
+
+	/**
+	 * Constructs a transformation from the first pose to the second pose
+	 * @param rPose1 first pose
+	 * @param rPose2 second pose
+	 */
+	Transform(const Pose2 &rPose1, const Pose2 &rPose2)
+	{
+		SetTransform(rPose1, rPose2);
+	}
+
+public:
+	/**
+	 * Transforms the pose according to this transform
+	 * @param rSourcePose pose to transform from
+	 * @return transformed pose
+	 */
+	inline Pose2 TransformPose(const Pose2 &rSourcePose)
+	{
+
+	}
+
+	/**
+	 * Inverse transformation of the pose according to this transform
+	 * @param rSourcePose pose to transform from
+	 * @return transformed pose
+	 */
+	inline Pose2 InverseTransformPose(const Pose2 &rSourcePose)
+	{
+
+	}
+
+private:
+	/**
+	 * Sets this to be the transformation from the first pose to the second pose
+	 * @param rPose1 first pose
+	 * @param rPose2 second pose
+	 */
+	void SetTransform(const Pose2 &rPose1, const Pose2 &rPose2)
+	{
+		
+	}
+
+private:
+	// pose transformation
+	Pose2 m_Transform;
+
+	Eigen::Matrix3d m_Rotation;
+	Eigen::Matrix3d m_InverseRotation;
+}; // Transform
 
 } // namespace pose_utils
 

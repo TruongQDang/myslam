@@ -64,6 +64,7 @@
                 "ios": "cpp",
                 "locale": "cpp",
                 "print": "cpp",
-                "chrono": "cpp"
+                "chrono": "cpp",
+                "geometry": "cpp"
         }
 }

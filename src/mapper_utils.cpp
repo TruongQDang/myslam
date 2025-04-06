@@ -3,49 +3,53 @@
 namespace mapper_utils
 {
 
-// template <class NodeT>
-// Mapper::Mapper(const NodeT &node)
-// {
-//         double minimum_travel_distance = 0.5;
-//         if (!node->has_parameter("minimum_travel_distance")) {
-//                 node->declare_parameter("minimum_travel_distance", minimum_travel_distance);
-//         }
-//         node->get_parameter("minimum_travel_distance", minimum_travel_distance);
-//         minimum_travel_distance_ = minimum_travel_distance;
+template <class NodeT>
+Mapper::Mapper(const NodeT &node)
+{
+        double minimum_travel_distance = 0.5;
+        if (!node->has_parameter("minimum_travel_distance"))
+        {
+                node->declare_parameter("minimum_travel_distance", minimum_travel_distance);
+        }
+        node->get_parameter("minimum_travel_distance", minimum_travel_distance);
+        minimum_travel_distance_ = minimum_travel_distance;
 
-//         double minimum_travel_heading = 0.5;
-//         if (!node->has_parameter("minimum_travel_heading")) {
-//                 node->declare_parameter("minimum_travel_heading", minimum_travel_heading);
-//         }
-//         node->get_parameter("minimum_travel_heading", minimum_travel_heading);
-//         minimum_travel_heading_ = minimum_travel_heading;
-// }
+        double minimum_travel_heading = 0.5;
+        if (!node->has_parameter("minimum_travel_heading"))
+        {
+                node->declare_parameter("minimum_travel_heading", minimum_travel_heading);
+        }
+        node->get_parameter("minimum_travel_heading", minimum_travel_heading);
+        minimum_travel_heading_ = minimum_travel_heading;
+}
 
-// bool Mapper::process(laser_utils::LocalizedRangeScan *scan, Eigen::Matrix3d *covariance)
-// {
+template Mapper::Mapper(const rclcpp_lifecycle::LifecycleNode::SharedPtr &);
 
-//         if (scan != nullptr) {
-//                 laser_utils::LocalizedRangeScan *last_scan = scan_manager_->getLastScan();
+bool Mapper::process(LocalizedRangeScan *scan, Eigen::Matrix3d *covariance)
+{
 
-//                 // if (m_Initialized == false)
-//                 // {
-//                 //         // initialize mapper with range threshold from device
-//                 //         Initialize(pLaserRangeFinder->GetRangeThreshold());
-//                 // }
+        if (scan != nullptr) {
+                // LocalizedRangeScan *last_scan = scan_manager_->getLastScan();
 
-//                 // Matrix3 cov;
-//                 // cov.SetToIdentity();
+                // if (m_Initialized == false)
+                // {
+                //         // initialize mapper with range threshold from device
+                //         Initialize(pLaserRangeFinder->GetRangeThreshold());
+                // }
 
-//                 // // add scan to buffer and assign id
-//                 // m_pMapperSensorManager->AddScan(pScan);
+                // Matrix3 cov;
+                // cov.SetToIdentity();
 
-//                 // m_pMapperSensorManager->SetLastScan(pScan);
+                // // add scan to buffer and assign id
+                // m_pMapperSensorManager->AddScan(pScan);
 
-//                 return true;
-//         }
+                // m_pMapperSensorManager->SetLastScan(pScan);
 
-//         return false;
-// }
+                return true;
+        }
+
+        return false;
+}
 
 // OccupancyGrid *Mapper::getOccupancyGrid(const double &resolution)
 // {
@@ -79,5 +83,39 @@ namespace mapper_utils
         
 // }
 
+///////////////////////////////////////////////////////////////////
+
+LocalizedRangeScan::LocalizedRangeScan(const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan)
+{
+        range_readings_ = std::make_unique<double[]>(scan->ranges.size());
+        std::copy(scan->ranges.begin(), scan->ranges.end(), range_readings_.get());
+}
+
+//////////////////////////////////////////////////////////////////
+
+bool PoseHelper::getPose(Pose2 &pose,
+        const rclcpp::Time &t,
+        const std::string &from_frame,
+        const std::string &to_frame)
+{
+        geometry_msgs::msg::TransformStamped tmp_pose;
+        try
+        {
+                tmp_pose = tf_->lookupTransform(
+                    to_frame,
+                    from_frame,
+                    t);
+        }
+        catch (const tf2::TransformException &ex)
+        {
+                return false;
+        }
+
+        const double yaw = tf2::getYaw(tmp_pose.transform.rotation);
+        pose = Pose2(tmp_pose.transform.translation.x,
+                     tmp_pose.transform.translation.y, yaw);
+
+        return true;
+}
 
 } // namespace mapper_utils

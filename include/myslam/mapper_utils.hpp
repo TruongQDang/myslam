@@ -5,7 +5,14 @@
 
 #include "nav_msgs/msg/occupancy_grid.hpp"
 #include "tf2/utils.hpp"
-#include <Eigen/Geometry>
+#include "tf2_ros/buffer.h"
+#include "rclcpp_lifecycle/lifecycle_node.hpp"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
+#include "sensor_msgs/msg/laser_scan.hpp"
+#include "rclcpp/time.hpp"
+
+#include "myslam/myslam_types.hpp"
+
 
 namespace mapper_utils
 {
@@ -16,82 +23,83 @@ class Grid;
 class OccupancyGrid;
 class CorrelationGrid;
 class LocalizedRangeScan;
-class Pose2;
 class PoseHelper;
 class CoordinateConverter;
 
-//////////////////////////////////////////////////////////////
-inline void toNavMap(
-        const OccupancyGrid *occ_grid,
-        nav_msgs::msg::OccupancyGrid &map);
+using namespace ::myslam_types;
 
 //////////////////////////////////////////////////////////////
+// inline void toNavMap(
+//         const OccupancyGrid *occ_grid,
+//         nav_msgs::msg::OccupancyGrid &map);
 
-// class Mapper 
-// {
-// public:
-//         template <class NodeT>
-//         Mapper(const NodeT &node);
+//////////////////////////////////////////////////////////////
 
-//         inline double getMinimumTravelDistance() const {
-//                 return minimum_travel_distance_;
-//         }
+class Mapper 
+{
+public:
+        template <class NodeT>
+        Mapper(const NodeT &node);
 
-//         inline double getMinimumTravelHeading() const {
-//                 return minimum_travel_heading_;
-//         }
+        inline double getMinimumTravelDistance() const {
+                return minimum_travel_distance_;
+        }
 
-//         /**
-//          * Process a localized range scan for incorporation into the map.  The scan must
-//          * be identified with a range finder device.  Once added to a map, the corrected pose information in the
-//          * localized scan will be updated to the correct pose as determined by the mapper.
-//          *
-//          * @param scan A localized range scan that has pose information associated directly with the scan data.  The pose
-//          * is that of the range device originating the scan.  Note that the mapper will set corrected pose
-//          * information in the scan object.
-//          *
-//          * @return true if the scan was added successfully, false otherwise
-//          */
-//         bool process(laser_utils::LocalizedRangeScan *scan, Eigen::Matrix3d *covariance = nullptr);
+        inline double getMinimumTravelHeading() const {
+                return minimum_travel_heading_;
+        }
 
-//         /**
-//          * Returns all processed scans added to the mapper.
-//          * NOTE: The returned scans have their corrected pose updated.
-//          * @return list of scans received and processed by the mapper. If no scans have been processed,
-//          * return an empty list.
-//          */
-//         const std::vector<laser_utils::LocalizedRangeScan *> getAllProcessedScans() const;
+        /**
+         * Process a localized range scan for incorporation into the map.  The scan must
+         * be identified with a range finder device.  Once added to a map, the corrected pose information in the
+         * localized scan will be updated to the correct pose as determined by the mapper.
+         *
+         * @param scan A localized range scan that has pose information associated directly with the scan data.  The pose
+         * is that of the range device originating the scan.  Note that the mapper will set corrected pose
+         * information in the scan object.
+         *
+         * @return true if the scan was added successfully, false otherwise
+         */
+        bool process(LocalizedRangeScan *scan, Eigen::Matrix3d *covariance = nullptr);
 
-//         // get occupancy grid from scans
-//         OccupancyGrid *getOccupancyGrid(const double &resolution);
+        /**
+         * Returns all processed scans added to the mapper.
+         * NOTE: The returned scans have their corrected pose updated.
+         * @return list of scans received and processed by the mapper. If no scans have been processed,
+         * return an empty list.
+         */
+        // const std::vector<laser_utils::LocalizedRangeScan *> getAllProcessedScans() const;
 
-//         uint32_t getParamMinPassThrough()
-//         {
-//                 return min_pass_through_;
-//         }
+        // // get occupancy grid from scans
+        // OccupancyGrid *getOccupancyGrid(const double &resolution);
 
-//         double getParamOccupancyThreshold()
-//         {
-//                 return occupancy_threshold_;
-//         }
+        uint32_t getParamMinPassThrough()
+        {
+                return min_pass_through_;
+        }
 
-// private:
-//         ScanManager *scan_manager_;
-//         // parameters
-//         double minimum_travel_distance_;
-//         double minimum_travel_heading_;
+        double getParamOccupancyThreshold()
+        {
+                return occupancy_threshold_;
+        }
 
-//         ////////////////////////////////////////////////////////////
-//         // NOTE: These two values are dependent on the resolution.  If the resolution is too small,
-//         // then not many beams will hit the cell!
+private:
+        ScanManager *scan_manager_;
+        // parameters
+        double minimum_travel_distance_;
+        double minimum_travel_heading_;
 
-//         // Number of beams that must pass through a cell before it will be considered to be occupied
-//         // or unoccupied.  This prevents stray beams from messing up the map.
-//         uint32_t min_pass_through_;
+        ////////////////////////////////////////////////////////////
+        // NOTE: These two values are dependent on the resolution.  If the resolution is too small,
+        // then not many beams will hit the cell!
 
-//         // Minimum ratio of beams hitting cell to beams passing through cell to be marked as occupied
-//         double occupancy_threshold_;
-// }; // Mapper
+        // Number of beams that must pass through a cell before it will be considered to be occupied
+        // or unoccupied.  This prevents stray beams from messing up the map.
+        uint32_t min_pass_through_;
+
+        // Minimum ratio of beams hitting cell to beams passing through cell to be marked as occupied
+        double occupancy_threshold_;
+}; // Mapper
 
 // //////////////////////////////////////////////////////////
 
@@ -228,157 +236,94 @@ inline void toNavMap(
 
 ///////////////////////////////////////////////////////
 
-// class LocalizedRangeScan
-// {
-// public:
-//         LocalizedRangeScan(const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan);
-
-//         inline void setScanId(int32_t scan_id)
-//         {
-//                 scan_id_ = scan_id;
-//         }
-
-//         inline int32_t getScanId()
-//         {
-//                 return scan_id_;
-//         }
-
-//         /**
-//          * Gets the odometric pose of this scan
-//          * @return odometric pose of this scan
-//          */
-//         inline const Pose2 &getOdometricPose() const
-//         {
-//                 return odom_pose_;
-//         }
-
-//         /**
-//          * Sets the odometric pose of this scan
-//          * @param pose
-//          */
-//         inline void setOdometricPose(const Pose2 &pose)
-//         {
-//                 odom_pose_ = pose;
-//         }
-
-//         /**
-//          * Gets the (possibly corrected) robot pose at which this scan was taken.  The corrected robot pose of the scan
-//          * is usually set by an external module such as a localization or mapping module when it is determined
-//          * that the original pose was incorrect.  The external module will set the correct pose based on
-//          * additional sensor data and any context information it has.  If the pose has not been corrected,
-//          * a call to this method returns the same pose as GetOdometricPose().
-//          * @return corrected pose
-//          */
-//         inline const Pose2 &getCorrectedPose() const
-//         {
-//                 return corrected_pose_;
-//         }
-
-//         /**
-//          * Moves the scan by moving the robot pose to the given location.
-//          * @param pose new pose of the robot of this scan
-//          */
-//         inline void setCorrectedPose(const Pose2 &pose)
-//         {
-//                 corrected_pose_ = pose;
-//         }
-
-// private:
-//         int32_t scan_id_;
-//         Pose2 corrected_pose_;
-//         Pose2 odom_pose_;
-// }; // LocalizedRangeScan
-
-// /////////////////////////////////////////////////
-
-// class PoseHelper
-// {
-// public:
-//         PoseHelper(tf2_ros::Buffer *tf)
-//             : tf_(tf)
-//         {
-//         }
-
-//         bool getPose(
-//             Pose2 &pose,
-//             const rclcpp::Time &t,
-//             const std::string &from_frame,
-//             const std::string &to_frame)
-//         {
-//                 geometry_msgs::msg::TransformStamped tmp_pose;
-//                 try
-//                 {
-//                         tmp_pose = tf_->lookupTransform(
-//                             to_frame,
-//                             from_frame,
-//                             t);
-//                 }
-//                 catch (const tf2::TransformException &ex)
-//                 {
-//                         return false;
-//                 }
-
-//                 const double yaw = tf2::getYaw(tmp_pose.transform.rotation);
-//                 pose = Pose2(tmp_pose.transform.translation.x,
-//                              tmp_pose.transform.translation.y, yaw);
-
-//                 return true;
-//         }
-
-// private:
-//         tf2_ros::Buffer *tf_;
-// }; // PoseHelper
-
-////////////////////////////////////////////////////////
-
-class Pose2
+class LocalizedRangeScan
 {
 public:
-        Pose2()
-                : pose(Eigen::Isometry2d::Identity())
+        LocalizedRangeScan(const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan);
+
+        inline void setScanId(int32_t scan_id)
         {
+                scan_id_ = scan_id;
         }
 
-        Pose2(double x, double y, double heading)
+        inline int32_t getScanId()
         {
-                pose.pretranslate(Eigen::Vector2d(x,y));
-                pose.rotate(Eigen::Rotation2D<double>(heading));
+                return scan_id_;
         }
 
-        inline double getX() const
+        /**
+         * Gets the odometric pose of this scan
+         * @return odometric pose of this scan
+         */
+        inline const Pose2 &getOdometricPose() const
         {
-                return pose.translation().x(); 
+                return odom_pose_;
         }
 
-        inline double getY() const
+        /**
+         * Sets the odometric pose of this scan
+         * @param pose
+         */
+        inline void setOdometricPose(const Pose2 &pose)
         {
-                return pose.translation().y();
+                odom_pose_ = pose;
         }
 
-        inline double getHeading() const
+        /**
+         * Gets the (possibly corrected) robot pose at which this scan was taken.  The corrected robot pose of the scan
+         * is usually set by an external module such as a localization or mapping module when it is determined
+         * that the original pose was incorrect.  The external module will set the correct pose based on
+         * additional sensor data and any context information it has.  If the pose has not been corrected,
+         * a call to this method returns the same pose as GetOdometricPose().
+         * @return corrected pose
+         */
+        inline const Pose2 &getCorrectedPose() const
         {
-                return Eigen::Rotation2D<double>(pose.linear()).angle();
+                return corrected_pose_;
         }
 
-        inline Eigen::Vector2d getPosition() const
+        /**
+         * Moves the scan by moving the robot pose to the given location.
+         * @param pose new pose of the robot of this scan
+         */
+        inline void setCorrectedPose(const Pose2 &pose)
         {
-                return pose.translation();
+                corrected_pose_ = pose;
         }
 
-        inline double getSquaredDistance(const Pose2 &other) const
+        inline void setTime(rclcpp::Time time) 
         {
-                return (pose.translation() - other.pose.translation()).squaredNorm();
-        }
-
-        inline bool operator==(const Pose2 &other) const
-        {
-                return  pose.translation() == other.pose.translation() && this->getHeading() == other.getHeading();
+                time_ = time;
         }
 
 private:
-        Eigen::Isometry2d pose;
+        int32_t scan_id_;
+        Pose2 corrected_pose_;
+        Pose2 odom_pose_;
+        std::unique_ptr<double[]> range_readings_;
+        rclcpp::Time time_;
+}; // LocalizedRangeScan
 
-}; // Pose2
+// /////////////////////////////////////////////////
+
+class PoseHelper
+{
+public:
+        PoseHelper(tf2_ros::Buffer *tf)
+            : tf_(tf)
+        {
+        }
+
+        bool getPose(
+            Pose2 &pose,
+            const rclcpp::Time &t,
+            const std::string &from_frame,
+            const std::string &to_frame);
+
+private:
+        tf2_ros::Buffer *tf_;
+}; // PoseHelper
+
 
 } // namespace mapper_utils
 

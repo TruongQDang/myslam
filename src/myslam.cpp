@@ -123,7 +123,7 @@ CallbackReturn MySlam::on_deactivate(const rclcpp_lifecycle::State &)
 {
         RCLCPP_INFO(get_logger(), "Deactivating...");
 
-        for (int i = 0; i != threads_.size(); i++)
+        for (long unsigned int i = 0; i != threads_.size(); i++)
         {
                 threads_[i]->interrupt();
                 threads_[i]->join();
@@ -174,7 +174,7 @@ CallbackReturn MySlam::on_shutdown(const rclcpp_lifecycle::State &)
 MySlam::~MySlam()
 /*****************************************************************************/
 {
-        for (int i = 0; i != threads_.size(); i++)
+        for (long unsigned int i = 0; i != threads_.size(); i++)
         {
                 threads_[i]->interrupt();
                 threads_[i]->join();
@@ -577,7 +577,7 @@ mapper_utils::LocalizedRangeScan *MySlam::addScan(
 // }
 
 /*****************************************************************************/
-LocalizedRangeScan *getLocalizedRangeScan(
+LocalizedRangeScan *MySlam::getLocalizedRangeScan(
         const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan,
         Pose2 &odom_pose)
 /*****************************************************************************/

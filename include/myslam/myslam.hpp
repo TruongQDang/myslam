@@ -33,7 +33,7 @@ class MySlam : public rclcpp_lifecycle::LifecycleNode
 {
 public:
         explicit MySlam(rclcpp::NodeOptions);
-        // ~MySlam();
+        ~MySlam();
 
         CallbackReturn on_configure(const rclcpp_lifecycle::State &) override;
         CallbackReturn on_activate(const rclcpp_lifecycle::State &) override;

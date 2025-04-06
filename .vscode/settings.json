@@ -65,6 +65,7 @@
                 "locale": "cpp",
                 "print": "cpp",
                 "chrono": "cpp",
-                "geometry": "cpp"
+                "geometry": "cpp",
+                "*.ipp": "cpp"
         }
 }

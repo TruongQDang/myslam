@@ -403,11 +403,11 @@ bool MySlam::updateMap()
                 return true;
         }
         boost::mutex::scoped_lock lock(mapper_mutex_);
-        // mapper_utils::OccupancyGrid *occ_grid = mapper_->getOccupancyGrid(resolution_);
-        // if (!occ_grid)
-        // {
-        //         return false;
-        // }
+        mapper_utils::OccupancyGrid *occ_grid = mapper_->getOccupancyGrid(resolution_);
+        if (!occ_grid)
+        {
+                return false;
+        }
 
         // mapper_utils::toNavMap(occ_grid, map_.map);
 

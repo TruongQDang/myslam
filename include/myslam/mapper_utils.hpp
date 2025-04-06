@@ -105,72 +105,116 @@ private:
 
 //////////////////////////////////////////////////////////////
 
-class Mapper 
+class OccupancyGrid
 {
 public:
-        template <class NodeT>
-        Mapper(const NodeT &node);
+        /**
+         * Constructs an occupancy grid of given size
+         * @param width
+         * @param height
+         * @param offset
+         * @param resolution
+         */
+        OccupancyGrid(
+            int32_t width, int32_t height,
+            const Eigen::Vector2d &offset,
+            double resolution);
 
-        inline double getMinimumTravelDistance() const {
-                return minimum_travel_distance_;
-        }
+        /**
+         * Create an occupancy grid from the given scans using the given resolution
+         * @param scans
+         * @param resolution
+         */
+        static OccupancyGrid *createFromScans(
+                const std::vector<LocalizedRangeScan *> &scans,
+                double resolution,
+                uint32_t min_pass_through,
+                double occupancy_threshold);
 
-        inline double getMinimumTravelHeading() const {
-                return minimum_travel_heading_;
+        static void ComputeDimensions(
+                const std::vector<LocalizedRangeScan *> &rScans,
+                double resolution,
+                int32_t &rWidth,
+                int32_t &rHeight,
+                Eigen::Vector2d &rOffset);
+
+        /**
+         * Adds the scan's information to this grid's counters (optionally
+         * update the grid's cells' occupancy status)
+         * @param scan
+         * @param doUpdate whether to update the grid's cell's occupancy status
+         * @return returns false if an endpoint fell off the grid, otherwise true
+         */
+        bool addScan(
+            LocalizedRangeScan *scan,
+            bool doUpdate = false);
+
+        /**
+         * Traces a beam from the start position to the end position marking
+         * the bookkeeping arrays accordingly.
+         * @param world_from start position of beam
+         * @param world_to end position of beam
+         * @param is_endpoint_valid is the reading within the range threshold?
+         * @param do_update whether to update the cells' occupancy status immediately
+         * @return returns false if an endpoint fell off the grid, otherwise true
+         */
+        bool rayTrace(
+            const Eigen::Vector2d &world_from,
+            const Eigen::Vector2d &world_to,
+            bool is_endpoint_valid,
+            bool do_update = false);
+
+        /**
+         * Gets the width of the grid
+         * @return width of the grid
+         */
+        inline int32_t getWidth() const
+        {
+                return width_;
         }
 
         /**
-         * Process a localized range scan for incorporation into the map.  The scan must
-         * be identified with a range finder device.  Once added to a map, the corrected pose information in the
-         * localized scan will be updated to the correct pose as determined by the mapper.
-         *
-         * @param scan A localized range scan that has pose information associated directly with the scan data.  The pose
-         * is that of the range device originating the scan.  Note that the mapper will set corrected pose
-         * information in the scan object.
-         *
-         * @return true if the scan was added successfully, false otherwise
+         * Gets the height of the grid
+         * @return height of the grid
          */
-        bool process(LocalizedRangeScan *scan, Eigen::Matrix3d *covariance = nullptr);
+        inline int32_t getHeight() const
+        {
+                return height_;
+        }
 
         /**
-         * Returns all processed scans added to the mapper.
-         * NOTE: The returned scans have their corrected pose updated.
-         * @return list of scans received and processed by the mapper. If no scans have been processed,
-         * return an empty list.
+         * Sets the minimum number of beams that must pass through a cell before it
+         * will be considered to be occupied or unoccupied.
+         * This prevents stray beams from messing up the map.
          */
-        // const std::vector<laser_utils::LocalizedRangeScan *> getAllProcessedScans() const;
-
-        // // get occupancy grid from scans
-        // OccupancyGrid *getOccupancyGrid(const double &resolution);
-
-        uint32_t getParamMinPassThrough()
+        void setMinPassThrough(uint32_t count)
         {
-                return min_pass_through_;
+                occupancy_threshold_ = count;
         }
 
-        double getParamOccupancyThreshold()
+        /**
+         * Sets the minimum ratio of beams hitting cell to beams passing through
+         * cell for cell to be marked as occupied.
+         */
+        void setOccupancyThreshold(double thresh)
         {
-                return occupancy_threshold_;
+                occupancy_threshold_ = thresh;
         }
+
+        /**
+         * Create grid using scans
+         * @param rScans
+         */
+        void createFromScans(const std::vector<LocalizedRangeScan *> &rScans);
 
 private:
-        ScanManager *scan_manager_;
-        // parameters
-        double minimum_travel_distance_;
-        double minimum_travel_heading_;
-        ////////////////////////////////////////////////////////////
-        // NOTE: These two values are dependent on the resolution.  If the resolution is too small,
-        // then not many beams will hit the cell!
-
-        // Number of beams that must pass through a cell before it will be considered to be occupied
-        // or unoccupied.  This prevents stray beams from messing up the map.
-        uint32_t min_pass_through_;
-
-        // Minimum ratio of beams hitting cell to beams passing through cell to be marked as occupied
+        int32_t width_;  // width of grid
+        int32_t height_; // height of grid
         double occupancy_threshold_;
-}; // Mapper
+        uint32_t min_pass_through_;
+}; // OccupancyGrid
 
-// //////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////
 
 class ScanManager
 {
@@ -225,83 +269,80 @@ private:
 
 }; // ScanManager
 
-// ///////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////
 
-// class OccupancyGrid
-// {
-// public:
-//         /**
-//          * Constructs an occupancy grid of given size
-//          * @param width
-//          * @param height
-//          * @param offset
-//          * @param resolution
-//          */
-//         OccupancyGrid(
-//                 int32_t width, int32_t height, 
-//                 const Eigen::Vector2d &offset,
-//                 double resolution);
+class Mapper 
+{
+public:
+        template <class NodeT>
+        Mapper(const NodeT &node);
 
-//         /**
-//          * Create an occupancy grid from the given scans using the given resolution
-//          * @param scans
-//          * @param resolution
-//          */
-//         static OccupancyGrid * createFromScans(
-//                 const std::vector<laser_utils::LocalizedRangeScan *> &scans,
-//                 double resolution, 
-//                 uint32_t min_pass_through,
-//                 double occupancy_threshold);
+        inline double getMinimumTravelDistance() const {
+                return minimum_travel_distance_;
+        }
 
-//         /**
-//          * Adds the scan's information to this grid's counters (optionally
-//          * update the grid's cells' occupancy status)
-//          * @param scan
-//          * @param doUpdate whether to update the grid's cell's occupancy status
-//          * @return returns false if an endpoint fell off the grid, otherwise true
-//          */
-//         bool addScan(
-//                 laser_utils::LocalizedRangeScan *scan, 
-//                 bool doUpdate = false);
+        inline double getMinimumTravelHeading() const {
+                return minimum_travel_heading_;
+        }
 
-//         /**
-//          * Traces a beam from the start position to the end position marking
-//          * the bookkeeping arrays accordingly.
-//          * @param world_from start position of beam
-//          * @param world_to end position of beam
-//          * @param is_endpoint_valid is the reading within the range threshold?
-//          * @param do_update whether to update the cells' occupancy status immediately
-//          * @return returns false if an endpoint fell off the grid, otherwise true
-//          */
-//         bool rayTrace(
-//                 const Eigen::Vector2d &world_from,
-//                 const Eigen::Vector2d & world_to,
-//                 bool is_endpoint_valid,
-//                 bool do_update = false);
+        /**
+         * Process a localized range scan for incorporation into the map.  The scan must
+         * be identified with a range finder device.  Once added to a map, the corrected pose information in the
+         * localized scan will be updated to the correct pose as determined by the mapper.
+         *
+         * @param scan A localized range scan that has pose information associated directly with the scan data.  The pose
+         * is that of the range device originating the scan.  Note that the mapper will set corrected pose
+         * information in the scan object.
+         *
+         * @return true if the scan was added successfully, false otherwise
+         */
+        bool process(LocalizedRangeScan *scan, Eigen::Matrix3d *covariance = nullptr);
 
-//         /**
-//          * Gets the width of the grid
-//          * @return width of the grid
-//          */
-//         inline int32_t getWidth() const
-//         {
-//                 return width_;
-//         }
+        /**
+         * Returns all processed scans added to the mapper.
+         * NOTE: The returned scans have their corrected pose updated.
+         * @return list of scans received and processed by the mapper. If no scans have been processed,
+         * return an empty list.
+         */
+        const std::vector<LocalizedRangeScan *> getAllProcessedScans() const;
 
-//         /**
-//          * Gets the height of the grid
-//          * @return height of the grid
-//          */
-//         inline int32_t getHeight() const
-//         {
-//                 return height_;
-//         }
+        // get occupancy grid from scans
+        OccupancyGrid *getOccupancyGrid(const double &resolution);
+
+        uint32_t getParamMinPassThrough()
+        {
+                return min_pass_through_;
+        }
+
+        double getParamOccupancyThreshold()
+        {
+                return occupancy_threshold_;
+        }
+
+private:
+        ScanManager *scan_manager_;
+        // parameters
+        double minimum_travel_distance_;
+        double minimum_travel_heading_;
+        ////////////////////////////////////////////////////////////
+        // NOTE: These two values are dependent on the resolution.  If the resolution is too small,
+        // then not many beams will hit the cell!
+
+        // Number of beams that must pass through a cell before it will be considered to be occupied
+        // or unoccupied.  This prevents stray beams from messing up the map.
+        uint32_t min_pass_through_;
+
+        // Minimum ratio of beams hitting cell to beams passing through cell to be marked as occupied
+        double occupancy_threshold_;
+}; // Mapper
+
+//////////////////////////////////////////////////////////
 
 
-// private:
-//         int32_t width_;  // width of grid
-//         int32_t height_; // height of grid
-// }; // OccupancyGrid
+
+///////////////////////////////////////////////////////////
+
+
 
 ///////////////////////////////////////////////////////
 

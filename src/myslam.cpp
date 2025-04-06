@@ -488,13 +488,11 @@ mapper_utils::LocalizedRangeScan *MySlam::addScan(
         // if sucessfully processed, create odom2map transform and add scan to storage
         if (processed) {
 
-                // setTransformFromPoses(range_scan->getCorrectedPose(), odom_pose,
-                //                       scan->header.stamp, update_reprocessing_transform);
+                setTransformFromPoses(range_scan->getCorrectedPose(), odom_pose,
+                        scan->header.stamp, false);
 
                 // publishPose(range_scan->getCorrectedPose(), covariance, scan->header.stamp);
-        }
-        else
-        {
+        } else {
                 delete range_scan;
                 range_scan = nullptr;
         }
@@ -502,79 +500,75 @@ mapper_utils::LocalizedRangeScan *MySlam::addScan(
         return range_scan;                
 }
 
-// /*****************************************************************************/
-// tf2::Stamped<tf2::Transform> MySlam::setTransformFromPoses(
-//         const Pose2 &corrected_pose,
-//         const Pose2 &odom_pose, const rclcpp::Time &t,
-//         const bool &update_reprocessing_transform)
-// /*****************************************************************************/
-// {
-//         // Compute the map->odom transform
-//         tf2::Stamped<tf2::Transform> odom_to_map;
-//         tf2::Quaternion q(0., 0., 0., 1.0);
-//         q.setRPY(0., 0., corrected_pose.getHeading());
-//         tf2::Stamped<tf2::Transform> base_to_map(
-//             tf2::Transform(q, tf2::Vector3(corrected_pose.getX(),
-//                                            corrected_pose.getY(), 0.0))
-//                 .inverse(),
-//             tf2_ros::fromMsg(t), base_frame_);
-//         try
-//         {
-//                 geometry_msgs::msg::TransformStamped base_to_map_msg, odom_to_map_msg;
+/*****************************************************************************/
+tf2::Stamped<tf2::Transform> MySlam::setTransformFromPoses(
+        const Pose2 &corrected_pose,
+        const Pose2 &odom_pose, const rclcpp::Time &t,
+        const bool &update_reprocessing_transform)
+/*****************************************************************************/
+{
+        // Compute the map->odom transform
+        tf2::Stamped<tf2::Transform> odom_to_map;
+        tf2::Quaternion q(0., 0., 0., 1.0);
+        q.setRPY(0., 0., corrected_pose.getHeading());
+        tf2::Stamped<tf2::Transform> base_to_map(
+                tf2::Transform(q, tf2::Vector3(corrected_pose.getX(),
+                        corrected_pose.getY(), 0.0)).inverse(),
+                tf2_ros::fromMsg(t), 
+                base_frame_);
+        try
+        {
+                geometry_msgs::msg::TransformStamped base_to_map_msg, odom_to_map_msg;
 
-//                 // https://github.com/ros2/geometry2/issues/176
-//                 // not working for some reason...
-//                 // base_to_map_msg = tf2::toMsg(base_to_map);
-//                 base_to_map_msg.header.stamp = tf2_ros::toMsg(base_to_map.stamp_);
-//                 base_to_map_msg.header.frame_id = base_to_map.frame_id_;
-//                 base_to_map_msg.transform.translation.x = base_to_map.getOrigin().getX();
-//                 base_to_map_msg.transform.translation.y = base_to_map.getOrigin().getY();
-//                 base_to_map_msg.transform.translation.z = base_to_map.getOrigin().getZ();
-//                 base_to_map_msg.transform.rotation = tf2::toMsg(base_to_map.getRotation());
+                base_to_map_msg.header.stamp = tf2_ros::toMsg(base_to_map.stamp_);
+                base_to_map_msg.header.frame_id = base_to_map.frame_id_;
+                base_to_map_msg.transform.translation.x = base_to_map.getOrigin().getX();
+                base_to_map_msg.transform.translation.y = base_to_map.getOrigin().getY();
+                base_to_map_msg.transform.translation.z = base_to_map.getOrigin().getZ();
+                base_to_map_msg.transform.rotation = tf2::toMsg(base_to_map.getRotation());
 
-//                 odom_to_map_msg = tf_->transform(base_to_map_msg, odom_frame_);
-//                 tf2::fromMsg(odom_to_map_msg, odom_to_map);
-//         }
-//         catch (tf2::TransformException &e)
-//         {
-//                 RCLCPP_ERROR(get_logger(), "Transform from base_link to odom failed: %s",
-//                              e.what());
-//                 return odom_to_map;
-//         }
+                odom_to_map_msg = tf_->transform(base_to_map_msg, odom_frame_);
+                tf2::fromMsg(odom_to_map_msg, odom_to_map);
+        }
+        catch (tf2::TransformException &e)
+        {
+                RCLCPP_ERROR(get_logger(), "Transform from base_link to odom failed: %s",
+                             e.what());
+                return odom_to_map;
+        }
 
-//         // set map to odom for our transformation thread to publish
-//         boost::mutex::scoped_lock lock(map_to_odom_mutex_);
-//         map_to_odom_ = tf2::Transform(tf2::Quaternion(odom_to_map.getRotation()),
-//                                       tf2::Vector3(odom_to_map.getOrigin()))
-//                            .inverse();
+        // set map to odom for our transformation thread to publish
+        boost::mutex::scoped_lock lock(map_to_odom_mutex_);
+        map_to_odom_ = tf2::Transform(tf2::Quaternion(odom_to_map.getRotation()),
+                tf2::Vector3(odom_to_map.getOrigin())).inverse();
 
-//         return odom_to_map;
-// }
+        return odom_to_map;
+}
 
-// /*****************************************************************************/
-// void MySlam::publishPose(
-//         const Pose2 &pose,
-//         const Eigen::Matrix3d &cov,
-//         const rclcpp::Time &t)
-// /*****************************************************************************/
-// {
-//         geometry_msgs::msg::PoseWithCovarianceStamped pose_msg;
-//         pose_msg.header.stamp = t;
-//         pose_msg.header.frame_id = map_frame_;
+/*****************************************************************************/
+void MySlam::publishPose(
+        const Pose2 &pose,
+        const Eigen::Matrix3d &cov,
+        const rclcpp::Time &t)
+/*****************************************************************************/
+{
+        geometry_msgs::msg::PoseWithCovarianceStamped pose_msg;
+        pose_msg.header.stamp = t;
+        pose_msg.header.frame_id = map_frame_;
 
-//         tf2::Quaternion q(0., 0., 0., 1.0);
-//         q.setRPY(0., 0., pose.getHeading());
-//         tf2::Transform transform(q, tf2::Vector3(pose.getX(), pose.getY(), 0.0));
-//         tf2::toMsg(transform, pose_msg.pose.pose);
+        tf2::Quaternion q(0., 0., 0., 1.0);
+        q.setRPY(0., 0., pose.getHeading());
+        tf2::Transform transform(q, tf2::Vector3(pose.getX(), pose.getY(), 0.0));
+        tf2::toMsg(transform, pose_msg.pose.pose);
 
-//         pose_msg.pose.covariance[0] = cov(0, 0) * position_covariance_scale_; // x
-//         pose_msg.pose.covariance[1] = cov(0, 1) * position_covariance_scale_; // xy
-//         pose_msg.pose.covariance[6] = cov(1, 0) * position_covariance_scale_; // xy
-//         pose_msg.pose.covariance[7] = cov(1, 1) * position_covariance_scale_; // y
-//         pose_msg.pose.covariance[35] = cov(2, 2) * yaw_covariance_scale_;     // yaw
+        pose_msg.pose.covariance[0] = cov(0, 0) * position_covariance_scale_; // x
+        pose_msg.pose.covariance[1] = cov(0, 1) * position_covariance_scale_; // xy
+        pose_msg.pose.covariance[6] = cov(1, 0) * position_covariance_scale_; // xy
+        pose_msg.pose.covariance[7] = cov(1, 1) * position_covariance_scale_; // y
+        pose_msg.pose.covariance[35] = cov(2, 2) * yaw_covariance_scale_;     // yaw
 
-//         pose_publisher_->publish(pose_msg);
-// }
+        pose_publisher_->publish(pose_msg);
+}
 
 /*****************************************************************************/
 LocalizedRangeScan *MySlam::getLocalizedRangeScan(

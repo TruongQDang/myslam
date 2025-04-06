@@ -58,14 +58,14 @@ protected:
                 const Pose2 &pose);
         mapper_utils::LocalizedRangeScan *addScan(const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan,
                 Pose2 &odom_pose);
-        // tf2::Stamped<tf2::Transform> setTransformFromPoses(
-        //         const Pose2 &corrected_pose,
-        //         const Pose2 &odom_pose, const rclcpp::Time &t,
-        //         const bool &update_reprocessing_transform);
-        // void publishPose(
-        //         const Pose2 &pose,
-        //         const Eigen::Matrix3d &cov,
-        //         const rclcpp::Time &t);
+        tf2::Stamped<tf2::Transform> setTransformFromPoses(
+                const Pose2 &corrected_pose,
+                const Pose2 &odom_pose, const rclcpp::Time &t,
+                const bool &update_reprocessing_transform);
+        void publishPose(
+                const Pose2 &pose,
+                const Eigen::Matrix3d &cov,
+                const rclcpp::Time &t);
         LocalizedRangeScan *getLocalizedRangeScan(
                 const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan,
                 Pose2 &odom_pose);

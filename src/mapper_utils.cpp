@@ -29,21 +29,11 @@ bool Mapper::process(LocalizedRangeScan *scan, Eigen::Matrix3d *covariance)
 {
 
         if (scan != nullptr) {
-                // LocalizedRangeScan *last_scan = scan_manager_->getLastScan();
 
-                // if (m_Initialized == false)
-                // {
-                //         // initialize mapper with range threshold from device
-                //         Initialize(pLaserRangeFinder->GetRangeThreshold());
-                // }
+                // add scan to buffer and assign id
+                scan_manager_->addScan(scan);
 
-                // Matrix3 cov;
-                // cov.SetToIdentity();
-
-                // // add scan to buffer and assign id
-                // m_pMapperSensorManager->AddScan(pScan);
-
-                // m_pMapperSensorManager->SetLastScan(pScan);
+                scan_manager_->setLastScan(scan);
 
                 return true;
         }

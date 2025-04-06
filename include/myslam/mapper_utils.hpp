@@ -33,6 +33,76 @@ using namespace ::myslam_types;
 //         const OccupancyGrid *occ_grid,
 //         nav_msgs::msg::OccupancyGrid &map);
 
+////////////////////////////////////////////////////////////
+
+class LocalizedRangeScan
+{
+public:
+        LocalizedRangeScan(const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan);
+
+        inline void setScanId(int32_t scan_id)
+        {
+                scan_id_ = scan_id;
+        }
+
+        inline int32_t getScanId()
+        {
+                return scan_id_;
+        }
+
+        /**
+         * Gets the odometric pose of this scan
+         * @return odometric pose of this scan
+         */
+        inline const Pose2 &getOdometricPose() const
+        {
+                return odom_pose_;
+        }
+
+        /**
+         * Sets the odometric pose of this scan
+         * @param pose
+         */
+        inline void setOdometricPose(const Pose2 &pose)
+        {
+                odom_pose_ = pose;
+        }
+
+        /**
+         * Gets the (possibly corrected) robot pose at which this scan was taken.  The corrected robot pose of the scan
+         * is usually set by an external module such as a localization or mapping module when it is determined
+         * that the original pose was incorrect.  The external module will set the correct pose based on
+         * additional sensor data and any context information it has.  If the pose has not been corrected,
+         * a call to this method returns the same pose as GetOdometricPose().
+         * @return corrected pose
+         */
+        inline const Pose2 &getCorrectedPose() const
+        {
+                return corrected_pose_;
+        }
+
+        /**
+         * Moves the scan by moving the robot pose to the given location.
+         * @param pose new pose of the robot of this scan
+         */
+        inline void setCorrectedPose(const Pose2 &pose)
+        {
+                corrected_pose_ = pose;
+        }
+
+        inline void setTime(rclcpp::Time time)
+        {
+                time_ = time;
+        }
+
+private:
+        int32_t scan_id_;
+        Pose2 corrected_pose_;
+        Pose2 odom_pose_;
+        std::unique_ptr<double[]> range_readings_;
+        rclcpp::Time time_;
+}; // LocalizedRangeScan
+
 //////////////////////////////////////////////////////////////
 
 class Mapper 
@@ -88,7 +158,6 @@ private:
         // parameters
         double minimum_travel_distance_;
         double minimum_travel_heading_;
-
         ////////////////////////////////////////////////////////////
         // NOTE: These two values are dependent on the resolution.  If the resolution is too small,
         // then not many beams will hit the cell!
@@ -103,58 +172,58 @@ private:
 
 // //////////////////////////////////////////////////////////
 
-// class ScanManager
-// {
-// public:
-//         ScanManager() 
-//         {
-//         }
+class ScanManager
+{
+public:
+        ScanManager() 
+        {
+        }
 
-//         /**
-//          * Gets all scans of all devices
-//          * @return all scans of all devices
-//          */
-//         std::vector<laser_utils::LocalizedRangeScan *> getAllScans()
-//         {
-//                 std::vector<laser_utils::LocalizedRangeScan *> scans;
+        /**
+         * Gets all scans of all devices
+         * @return all scans of all devices
+         */
+        std::vector<LocalizedRangeScan *> getAllScans()
+        {
+                std::vector<LocalizedRangeScan *> scans;
 
-//                 return scans;
-//         }
+                return scans;
+        }
 
-//         /**
-//          * Gets last scan of given sensor
-//          * @return last localized range scan of sensor
-//          */
-//         inline laser_utils::LocalizedRangeScan * getLastScan()
-//         {
-//                 return last_scan_;
-//         }
+        /**
+         * Gets last scan of given sensor
+         * @return last localized range scan of sensor
+         */
+        inline LocalizedRangeScan *getLastScan()
+        {
+                return last_scan_;
+        }
 
-//         inline void addScan(laser_utils::LocalizedRangeScan *scan) 
-//         {
-//                 // assign unique scan id
-//                 scan->setScanId(next_scan_id_);
-//                 next_scan_id_++;
-//                 // add to scan buffer
-//                 scans_.emplace(scan->getScanId(), scan);
-//         }
+        inline void addScan(LocalizedRangeScan *scan) 
+        {
+                // assign unique scan id
+                scan->setScanId(next_scan_id_);
+                next_scan_id_++;
+                // add to scan buffer
+                scans_.emplace(scan->getScanId(), scan);
+        }
 
-//         inline void setLastScan(laser_utils::LocalizedRangeScan *scan)
-//         {
-//                 last_scan_ = scan;
-//         }
+        inline void setLastScan(LocalizedRangeScan *scan)
+        {
+                last_scan_ = scan;
+        }
 
 
-// private:
-//         std::map<int, laser_utils::LocalizedRangeScan *> scans_;
-//         std::vector<laser_utils::LocalizedRangeScan *> running_scans_;
-//         laser_utils::LocalizedRangeScan *last_scan_;
-//         uint32_t next_scan_id_;
+private:
+        std::map<int, LocalizedRangeScan *> scans_;
+        std::vector<LocalizedRangeScan *> running_scans_;
+        LocalizedRangeScan *last_scan_;
+        uint32_t next_scan_id_;
         
-//         uint32_t running_buffer_maximum_size_;
-//         double running_buffer_maximum_distance_;
+        uint32_t running_buffer_maximum_size_;
+        double running_buffer_maximum_distance_;
 
-// }; // ScanManager
+}; // ScanManager
 
 // ///////////////////////////////////////////////////////////
 
@@ -236,75 +305,8 @@ private:
 
 ///////////////////////////////////////////////////////
 
-class LocalizedRangeScan
-{
-public:
-        LocalizedRangeScan(const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan);
 
-        inline void setScanId(int32_t scan_id)
-        {
-                scan_id_ = scan_id;
-        }
-
-        inline int32_t getScanId()
-        {
-                return scan_id_;
-        }
-
-        /**
-         * Gets the odometric pose of this scan
-         * @return odometric pose of this scan
-         */
-        inline const Pose2 &getOdometricPose() const
-        {
-                return odom_pose_;
-        }
-
-        /**
-         * Sets the odometric pose of this scan
-         * @param pose
-         */
-        inline void setOdometricPose(const Pose2 &pose)
-        {
-                odom_pose_ = pose;
-        }
-
-        /**
-         * Gets the (possibly corrected) robot pose at which this scan was taken.  The corrected robot pose of the scan
-         * is usually set by an external module such as a localization or mapping module when it is determined
-         * that the original pose was incorrect.  The external module will set the correct pose based on
-         * additional sensor data and any context information it has.  If the pose has not been corrected,
-         * a call to this method returns the same pose as GetOdometricPose().
-         * @return corrected pose
-         */
-        inline const Pose2 &getCorrectedPose() const
-        {
-                return corrected_pose_;
-        }
-
-        /**
-         * Moves the scan by moving the robot pose to the given location.
-         * @param pose new pose of the robot of this scan
-         */
-        inline void setCorrectedPose(const Pose2 &pose)
-        {
-                corrected_pose_ = pose;
-        }
-
-        inline void setTime(rclcpp::Time time) 
-        {
-                time_ = time;
-        }
-
-private:
-        int32_t scan_id_;
-        Pose2 corrected_pose_;
-        Pose2 odom_pose_;
-        std::unique_ptr<double[]> range_readings_;
-        rclcpp::Time time_;
-}; // LocalizedRangeScan
-
-// /////////////////////////////////////////////////
+/////////////////////////////////////////////////
 
 class PoseHelper
 {

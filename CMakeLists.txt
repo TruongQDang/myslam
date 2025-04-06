@@ -39,25 +39,25 @@ set(ros_dependencies
 set(BUILD_SHARED_LIBS ON)
 
 set(libraries
-    myslam_common
+    mapper_utils
     myslam)
 
 include_directories(include ${EIGEN3_INCLUDE_DIRS}
                             ${Boost_INCLUDE_DIRS})
 
-add_library(myslam_common src/myslam_common.cpp src/laser_helper.cpp src/mapper.cpp)
-ament_target_dependencies(myslam_common ${ros_dependencies})
-target_link_libraries(myslam_common ${Boost_LIBRARIES})
+add_library(mapper_utils src/mapper_utils.cpp)
+ament_target_dependencies(mapper_utils ${ros_dependencies})
+target_link_libraries(mapper_utils ${Boost_LIBRARIES})
 
 add_library(myslam src/myslam.cpp)
-target_link_libraries(myslam myslam_common)
+target_link_libraries(myslam mapper_utils)
 add_executable(myslam_node src/myslam_node.cpp)
 target_link_libraries(myslam_node myslam)
 
 install(TARGETS myslam_node
                 ${libraries}
-  LIBRARY DESTINATION lib
-  RUNTIME DESTINATION lib/${PROJECT_NAME}
+        LIBRARY DESTINATION lib
+        RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
 ament_package()

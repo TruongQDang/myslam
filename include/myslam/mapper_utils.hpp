@@ -2,6 +2,8 @@
 #define MAPPER_UTILS_HPP
 
 #include <unordered_map>
+#include <boost/thread/shared_mutex.hpp>
+#include <boost/thread/locks.hpp>
 
 #include "nav_msgs/msg/occupancy_grid.hpp"
 #include "tf2/utils.hpp"
@@ -19,8 +21,9 @@ namespace mapper_utils
 
 class Mapper;
 class ScanManager;
-class Grid;
+class LaserRangeFinder;
 class OccupancyGrid;
+class CellUpdater;
 class CorrelationGrid;
 class LocalizedRangeScan;
 class PoseHelper;
@@ -32,6 +35,79 @@ using namespace ::myslam_types;
 // inline void toNavMap(
 //         const OccupancyGrid *occ_grid,
 //         nav_msgs::msg::OccupancyGrid &map);
+
+////////////////////////////////////////////////////////////
+
+class LaserRangeFinder
+{
+public:
+        LaserRangeFinder()
+        {
+
+        }
+
+        /**
+         * Gets the number of range readings each localized range scan must contain to be a valid scan.
+         * @return number of range readings
+         */
+        inline uint32_t getNumberOfRangeReadings() const
+        {
+                return number_of_range_readings_;
+        }
+
+        /**
+         * Gets this range finder sensor's minimum range
+         * @return minimum range
+         */
+        inline double getMinimumRange() const
+        {
+                return minimum_range_;
+        }
+
+        /**
+         * Gets the range threshold
+         * @return range threshold
+         */
+        inline double getRangeThreshold() const
+        {
+                return range_threshold_;
+        }
+
+        /**
+         * Gets this range finder sensor's minimum angle
+         * @return minimum angle
+         */
+        inline double getMinimumAngle() const
+        {
+                return minimum_angle_;
+        }
+
+        /**
+         * Gets this range finder sensor's angular resolution
+         * @return angular resolution
+         */
+        inline double getAngularResolution() const
+        {
+                return angular_resolution_;
+        }
+
+        /**
+         * Gets this range finder sensor's offset
+         * @return offset pose
+         */
+        inline const Pose2 &getOffsetPose() const
+        {
+                return offset_pose_;
+        }
+
+private:
+        double range_threshold_;
+        double minimum_range_;
+        double minimum_angle_;
+        double angular_resolution_;
+        uint32_t number_of_range_readings_;
+        Pose2 offset_pose_;
+};
 
 ////////////////////////////////////////////////////////////
 
@@ -95,13 +171,145 @@ public:
                 time_ = time;
         }
 
+        /**
+         * Computes the position of the sensor
+         * @return scan pose
+         */
+        inline Pose2 getSensorPose() const
+        {
+                return Pose2::applyTransform(corrected_pose_, laser_->getOffsetPose());
+        }
+
+        /**
+         * Gets the range readings of this scan
+         * @return range readings of this scan
+         */
+        inline const double *getRangeReadings() const
+        {
+                return range_readings_.get();
+        }
+
+        /**
+         * Gets the bounding box of this scan
+         * @return bounding box of this scan
+         */
+        inline const BoundingBox2 &getBoundingBox() const
+        {
+                boost::shared_lock<boost::shared_mutex> lock(lock_);
+
+                if (is_dirty_) {
+                        // throw away constness and do an update!
+                        lock.unlock();
+                        boost::unique_lock<boost::shared_mutex> unique_lock(lock_);
+                        const_cast<LocalizedRangeScan *>(this)->update();
+                }
+
+                return bounding_box_;
+        }
+
 private:
+        /**
+         * Compute point readings based on range readings
+         * Only range readings within [minimum range; range threshold] are returned
+         */
+        void update() 
+        {
+                if (laser_ != nullptr) {
+                        point_readings_.clear();
+                        point_readings_.clear();
+
+                        double range_threshold = laser_->getRangeThreshold();
+                        double minimum_angle = laser_->getMinimumAngle();
+                        double angular_resolution = laser_->getAngularResolution();
+                        Pose2 scan_pose = getSensorPose();
+
+                        // compute point readings
+                        Eigen::Vector2d range_points_sum;
+                        uint32_t beam_num = 0;
+                        for (uint32_t i = 0; i < laser_->getNumberOfRangeReadings(); i++, beam_num++) {
+                                // iterate through all range readings
+                                double range_reading = getRangeReadings()[i];
+                                double angle = scan_pose.getHeading() + minimum_angle + beam_num * angular_resolution;
+                                Eigen::Vector2d point;
+                                point.x() = scan_pose.getX() + (range_reading * cos(angle));
+                                point.y() = scan_pose.getY() + (range_reading * sin(angle));
+        
+                                if (range_reading < laser_->getMinimumRange() && range_reading > range_threshold) {
+                                        // if not within valid range
+                                        unfiltered_point_readings_.push_back(point);
+                                } else {
+                                        // if within valid range
+                                        point_readings_.push_back(point);
+                                        unfiltered_point_readings_.push_back(point);
+                                        range_points_sum += point;
+                                }
+                        }
+
+                        // compute barycenter
+                        double n_points = static_cast<double>(point_readings_.size());
+                        if (n_points != 0.0) {
+                                Eigen::Vector2d average_position = Eigen::Vector2d(range_points_sum / n_points);
+                                barycenter_pose_ = Pose2(average_position, 0.0);
+                        }
+                        else
+                        {
+                                barycenter_pose_ = scan_pose;
+                        }
+
+                        // calculate bounding box of scan
+                        bounding_box_ = BoundingBox2();
+                        bounding_box_.add(scan_pose.getPosition());
+
+                        for (const auto &point_reading : point_readings_) {
+                                bounding_box_.add(point_reading);
+                        }
+                }
+
+                is_dirty_ = false;
+                
+        }
+
         int32_t scan_id_;
         Pose2 corrected_pose_;
         Pose2 odom_pose_;
+        /**
+         * Average of all the point readings
+         */
+        Pose2 barycenter_pose_;
         std::unique_ptr<double[]> range_readings_;
         rclcpp::Time time_;
+        BoundingBox2 bounding_box_;
+        bool is_dirty_;
+        std::vector<Eigen::Vector2d> point_readings_;
+        std::vector<Eigen::Vector2d> unfiltered_point_readings_;
+        LaserRangeFinder *laser_;
+
+        mutable boost::shared_mutex lock_;
+
 }; // LocalizedRangeScan
+
+//////////////////////////////////////////////////////////////
+
+template<typename T>
+class Grid 
+{
+public:
+        Grid()
+        {
+
+        }
+
+};
+
+//////////////////////////////////////////////////////////////
+
+class CoordinateConverter
+{
+public:
+        CoordinateConverter()
+        {
+        }
+};
 
 //////////////////////////////////////////////////////////////
 
@@ -131,12 +339,20 @@ public:
                 uint32_t min_pass_through,
                 double occupancy_threshold);
 
-        static void ComputeDimensions(
-                const std::vector<LocalizedRangeScan *> &rScans,
+        /**
+         * Calculate grid dimensions from localized range scans
+         * @param rScans
+         * @param resolution
+         * @param rWidth
+         * @param rHeight
+         * @param rOffset
+         */
+        static void computeGridDimensions(
+                const std::vector<LocalizedRangeScan *> &scans,
                 double resolution,
-                int32_t &rWidth,
-                int32_t &rHeight,
-                Eigen::Vector2d &rOffset);
+                int32_t &width,
+                int32_t &height,
+                Eigen::Vector2d &offset);
 
         /**
          * Adds the scan's information to this grid's counters (optionally

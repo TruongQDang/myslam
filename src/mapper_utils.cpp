@@ -1,4 +1,5 @@
 #include "myslam/mapper_utils.hpp"
+#include <cmath>
 
 namespace mapper_utils
 {
@@ -85,7 +86,7 @@ OccupancyGrid *OccupancyGrid::createFromScans(
 
         int32_t width, height;
         Eigen::Vector2d offset;
-        ComputeDimensions(scans, resolution, width, height, offset);
+        computeGridDimensions(scans, resolution, width, height, offset);
         OccupancyGrid *pOccupancyGrid = new OccupancyGrid(width, height, offset, resolution);
         pOccupancyGrid->setMinPassThrough(min_pass_through);
         pOccupancyGrid->setOccupancyThreshold(occupancy_threshold);
@@ -94,14 +95,28 @@ OccupancyGrid *OccupancyGrid::createFromScans(
         return pOccupancyGrid;
 }
 
-void OccupancyGrid::ComputeDimensions(
-        const std::vector<LocalizedRangeScan *> &rScans,
+void OccupancyGrid::computeGridDimensions(
+        const std::vector<LocalizedRangeScan *> &scans,
         double resolution,
-        int32_t &rWidth,
-        int32_t &rHeight,
-        Eigen::Vector2d &rOffset)
+        int32_t &width,
+        int32_t &height,
+        Eigen::Vector2d &offset)
 {
-        
+        BoundingBox2 bounding_box;
+        for (const auto &scan : scans) {
+                if (scan == nullptr) {
+                        continue;
+                }
+
+                bounding_box.add(scan->getBoundingBox());
+        }
+
+        double scale = 1.0 / resolution;
+        Size2<double> size = bounding_box.getSize();
+
+        width = static_cast<int32_t>(std::round(size.getWidth() * scale));
+        height = static_cast<int32_t>(std::round(size.getHeight() * scale));
+        offset = bounding_box.getMinimum();
 }
 
 void OccupancyGrid::createFromScans(const std::vector<LocalizedRangeScan *> &rScans)

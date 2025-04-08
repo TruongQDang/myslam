@@ -69,8 +69,25 @@ OccupancyGrid::OccupancyGrid(
         int32_t width, int32_t height,
         const Eigen::Vector2d &offset,
         double resolution)
+        : Grid<uint8_t>(width, height),
+        cell_pass_cnt_(Grid<uint32_t>::createGrid(0, 0, resolution)),
+        cell_hit_cnt_(Grid<uint32_t>::createGrid(0, 0, resolution)),
+        cell_updater_(nullptr)
 {
-        
+        cell_updater_ = new CellUpdater(this);
+
+        // if (karto::math::DoubleEqual(resolution, 0.0))
+        // {
+        //         throw Exception("Resolution cannot be 0");
+        // }
+
+        std::cout << "height that is set: " << this->getHeight() << std::endl;
+
+        min_pass_through_ = 2;
+        occupancy_threshold_ = 0.1;
+
+        getCoordinateConverter()->setScale(1.0 / resolution);
+        getCoordinateConverter()->setOffset(offset);
 }
 
 OccupancyGrid *OccupancyGrid::createFromScans(
@@ -79,8 +96,7 @@ OccupancyGrid *OccupancyGrid::createFromScans(
         uint32_t min_pass_through,
         double occupancy_threshold)
 {
-        if (scans.empty())
-        {
+        if (scans.empty()) {
                 return nullptr;
         }
 
@@ -90,6 +106,9 @@ OccupancyGrid *OccupancyGrid::createFromScans(
         OccupancyGrid *pOccupancyGrid = new OccupancyGrid(width, height, offset, resolution);
         pOccupancyGrid->setMinPassThrough(min_pass_through);
         pOccupancyGrid->setOccupancyThreshold(occupancy_threshold);
+        std::cout << "width: " << width << std::endl;
+        std::cout << "offset: " << offset << std::endl;
+        std::cout << "height that is computed: " << height << std::endl;
         pOccupancyGrid->createFromScans(scans);
 
         return pOccupancyGrid;
@@ -119,26 +138,30 @@ void OccupancyGrid::computeGridDimensions(
         offset = bounding_box.getMinimum();
 }
 
-void OccupancyGrid::createFromScans(const std::vector<LocalizedRangeScan *> &rScans)
+void OccupancyGrid::createFromScans(const std::vector<LocalizedRangeScan *> &scans)
 {
-        // m_pCellPassCnt->Resize(GetWidth(), GetHeight());
-        // m_pCellPassCnt->GetCoordinateConverter()->SetOffset(GetCoordinateConverter()->GetOffset());
+        std::cout << "height: " << getHeight() << std::endl; 
+        cell_pass_cnt_->resize(getWidth(), getHeight());
+        if (cell_pass_cnt_->getDataPointer() == nullptr) {
+                std::cout << "cannot init pointer for cellpass" << std::endl; 
+        }
+        std::cout << "ok1" << std::endl;
+        cell_pass_cnt_->getCoordinateConverter()->setOffset(getCoordinateConverter()->getOffset());
+        std::cout << "ok2" << std::endl;
+        cell_hit_cnt_->resize(getWidth(), getHeight());
+        cell_hit_cnt_->getCoordinateConverter()->setOffset(getCoordinateConverter()->getOffset());
 
-        // m_pCellHitsCnt->Resize(GetWidth(), GetHeight());
-        // m_pCellHitsCnt->GetCoordinateConverter()->SetOffset(GetCoordinateConverter()->GetOffset());
+        for (const auto &scan_iter : scans) {
+                if (scan_iter == nullptr) {
+                        continue;
+                }
 
-        // const_forEach(LocalizedRangeScanVector, &rScans)
-        // {
-        //         if (*iter == nullptr)
-        //         {
-        //                 continue;
-        //         }
+                LocalizedRangeScan *scan = scan_iter;
+                std::cout << "ok3" << std::endl;
+                addScan(scan);
+        }
 
-        //         LocalizedRangeScan *pScan = *iter;
-        //         AddScan(pScan);
-        // }
-
-        // Update();
+        update();
 }
 
 ///////////////////////////////////////////////////////////////////
@@ -175,5 +198,20 @@ bool PoseHelper::getPose(Pose2 &pose,
 
         return true;
 }
+
+///////////////////////////////////////////////////////
+
+void CellUpdater::operator()(uint32_t index)
+{
+        uint8_t *data_ptr = occupancy_grid_->getDataPointer();
+        uint32_t *cell_pass_cnt_ptr = occupancy_grid_->cell_pass_cnt_->getDataPointer();
+        uint32_t *cell_hit_cnt_ptr = occupancy_grid_->cell_hit_cnt_->getDataPointer();
+
+        occupancy_grid_->updateCell(&data_ptr[index], cell_pass_cnt_ptr[index], cell_hit_cnt_ptr[index]);
+}
+
+////////////////////////////////////////////////////////
+
+
 
 } // namespace mapper_utils

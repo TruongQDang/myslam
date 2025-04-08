@@ -4,6 +4,9 @@
 #include "rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp"
 #include <Eigen/Geometry>
 
+// compute linear index for given map coords
+#define MAP_IDX(sx, i, j) ((sx) * (j) + (i))
+
 namespace myslam_types
 {
 
@@ -204,7 +207,12 @@ private:
 
 ///////////////////////////////////////////////////////////////
 
-
+enum class GridStates : uint8_t
+{
+        UNKNOWN = 0,
+        OCCUPIED = 100,
+        FREE = 255
+};
 
 typedef rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn CallbackReturn;
 

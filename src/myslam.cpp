@@ -409,17 +409,17 @@ bool MySlam::updateMap()
                 return false;
         }
 
-        // mapper_utils::toNavMap(occ_grid, map_.map);
+        mapper_utils::toNavMap(occ_grid, map_.map);
 
         // publish map as current
-        // map_.map.header.stamp = scan_header_.stamp;
-        // map_publisher_->publish(
-        //     std::move(std::make_unique<nav_msgs::msg::OccupancyGrid>(map_.map)));
-        // map_metadata_publisher_->publish(
-        //     std::move(std::make_unique<nav_msgs::msg::MapMetaData>(map_.map.info)));
+        map_.map.header.stamp = scan_header_.stamp;
+        map_publisher_->publish(
+            std::move(std::make_unique<nav_msgs::msg::OccupancyGrid>(map_.map)));
+        map_metadata_publisher_->publish(
+            std::move(std::make_unique<nav_msgs::msg::MapMetaData>(map_.map.info)));
 
-        // delete occ_grid;
-        // occ_grid = nullptr;
+        delete occ_grid;
+        occ_grid = nullptr;
         return true;
 }
 

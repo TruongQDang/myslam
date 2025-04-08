@@ -66,4 +66,7 @@ install(TARGETS myslam_node
         RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
+install(DIRECTORY launch description worlds config
+        DESTINATION share/${PROJECT_NAME}/)
+
 ament_package()

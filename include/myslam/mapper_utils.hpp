@@ -6,6 +6,7 @@
 #include <boost/thread/locks.hpp>
 #include <cstring>
 #include <iostream>
+#include <cmath>
 
 #include "nav_msgs/msg/occupancy_grid.hpp"
 #include "tf2/utils.hpp"
@@ -204,16 +205,6 @@ public:
                 std::copy(range_readings.begin(), range_readings.end(), range_readings_.get());
         }
 
-        
-
-        LocalizedRangeScan(const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan);
-
-        LocalizedRangeScan(const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan, LaserRangeFinder *laser)
-                : LocalizedRangeScan(scan)
-        {
-                laser_ = laser;
-                is_dirty_ = true;
-        } 
 
         inline void setScanId(uint32_t scan_id)
         {
@@ -788,9 +779,27 @@ public:
          * @param resolution
          */
         OccupancyGrid(
-            int32_t width, int32_t height,
-            const Eigen::Vector2d &offset,
-            double resolution);
+                int32_t width, int32_t height,
+                const Eigen::Vector2d &offset,
+                double resolution)
+                : Grid<uint8_t>(width, height),
+                cell_pass_cnt_(Grid<uint32_t>::createGrid(0, 0, resolution)),
+                cell_hit_cnt_(Grid<uint32_t>::createGrid(0, 0, resolution)),
+                cell_updater_(nullptr)
+        {
+                cell_updater_ = new CellUpdater(this);
+
+                // if (karto::math::DoubleEqual(resolution, 0.0))
+                // {
+                //         throw Exception("Resolution cannot be 0");
+                // }
+
+                min_pass_through_ = 2;
+                occupancy_threshold_ = 0.1;
+
+                getCoordinateConverter()->setScale(1.0 / resolution);
+                getCoordinateConverter()->setOffset(offset);
+        }
 
         /**
          * Create an occupancy grid from the given scans using the given resolution
@@ -801,7 +810,25 @@ public:
                 const std::vector<LocalizedRangeScan *> &scans,
                 double resolution,
                 uint32_t min_pass_through,
-                double occupancy_threshold);
+                double occupancy_threshold)
+        {
+                if (scans.empty())
+                {
+                        return nullptr;
+                }
+
+                int32_t width, height;
+                Eigen::Vector2d offset;
+                computeGridDimensions(scans, resolution, width, height, offset);
+                OccupancyGrid *pOccupancyGrid = new OccupancyGrid(width, height, offset, resolution);
+                pOccupancyGrid->setMinPassThrough(min_pass_through);
+                pOccupancyGrid->setOccupancyThreshold(occupancy_threshold);
+                std::cout << "width of occgrid: " << pOccupancyGrid->getWidth() << std::endl;
+                std::cout << "height of occgrid: " << pOccupancyGrid->getHeight() << std::endl;
+                pOccupancyGrid->createFromScans(scans);
+
+                return pOccupancyGrid;
+        }
 
         /**
          * Calculate grid dimensions from localized range scans
@@ -816,7 +843,27 @@ public:
                 double resolution,
                 int32_t &width,
                 int32_t &height,
-                Eigen::Vector2d &offset);
+                Eigen::Vector2d &offset)
+        {
+                BoundingBox2 bounding_box;
+
+                for (const auto &scan : scans)
+                {
+                        if (scan == nullptr)
+                        {
+                                continue;
+                        }
+
+                        bounding_box.add(scan->getBoundingBox());
+                }
+
+                double scale = 1.0 / resolution;
+                Size2<double> size = bounding_box.getSize();
+
+                width = static_cast<int32_t>(std::round(size.getWidth() * scale));
+                height = static_cast<int32_t>(std::round(size.getHeight() * scale));
+                offset = bounding_box.getMinimum();
+        }
 
         /**
          * Traces a beam from the start position to the end position marking
@@ -911,7 +958,26 @@ public:
          * Create grid using scans
          * @param scans
          */
-        void createFromScans(const std::vector<LocalizedRangeScan *> &scans);
+        void createFromScans(const std::vector<LocalizedRangeScan *> &scans)
+        {
+                cell_pass_cnt_->resize(getWidth(), getHeight());
+                cell_pass_cnt_->getCoordinateConverter()->setOffset(getCoordinateConverter()->getOffset());
+                cell_hit_cnt_->resize(getWidth(), getHeight());
+                cell_hit_cnt_->getCoordinateConverter()->setOffset(getCoordinateConverter()->getOffset());
+
+                for (const auto &scan_iter : scans)
+                {
+                        if (scan_iter == nullptr)
+                        {
+                                continue;
+                        }
+
+                        LocalizedRangeScan *scan = scan_iter;
+                        addScan(scan);
+                }
+
+                update();
+        }
 
         /**
          * Adds the scan's information to this grid's counters (optionally
@@ -1175,10 +1241,31 @@ public:
          * @return list of scans received and processed by the mapper. If no scans have been processed,
          * return an empty list.
          */
-        const std::vector<LocalizedRangeScan *> getAllProcessedScans() const;
+        const std::vector<LocalizedRangeScan *> getAllProcessedScans() const
+        {
+                std::vector<LocalizedRangeScan *> all_scans;
+
+                if (scan_manager_ != nullptr)
+                {
+                        std::cout << "about to get scans" << std::endl;
+                        all_scans = scan_manager_->getAllScans();
+                }
+
+                std::cout << "got " << all_scans.size() << " scans" << std::endl;
+
+                return all_scans;
+        }
 
         // get occupancy grid from scans
-        OccupancyGrid *getOccupancyGrid(const double &resolution);
+        OccupancyGrid *getOccupancyGrid(const double &resolution)
+        {
+                OccupancyGrid *occ_grid = nullptr;
+                return OccupancyGrid::createFromScans(
+                    getAllProcessedScans(),
+                    resolution,
+                    (uint32_t)getParamMinPassThrough(),
+                    (double)getParamOccupancyThreshold());
+        }
 
         uint32_t getParamMinPassThrough()
         {
@@ -1253,7 +1340,27 @@ public:
             Pose2 &pose,
             const rclcpp::Time &t,
             const std::string &from_frame,
-            const std::string &to_frame);
+            const std::string &to_frame)
+        {
+                geometry_msgs::msg::TransformStamped tmp_pose;
+                try
+                {
+                        tmp_pose = tf_->lookupTransform(
+                            to_frame,
+                            from_frame,
+                            t);
+                }
+                catch (const tf2::TransformException &ex)
+                {
+                        return false;
+                }
+
+                const double yaw = tf2::getYaw(tmp_pose.transform.rotation);
+                pose = Pose2(tmp_pose.transform.translation.x,
+                             tmp_pose.transform.translation.y, yaw);
+
+                return true;
+        }
 
 private:
         tf2_ros::Buffer *tf_;

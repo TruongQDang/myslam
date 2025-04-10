@@ -50,11 +50,6 @@ void MySlam::laserCallback(sensor_msgs::msg::LaserScan::ConstSharedPtr scan)
                 makeLaser(scan);
         }
 
-        // std::cout << "raw reading from msg" << std::endl;
-        // for (auto &reading : scan->ranges) {
-        //         std::cout << reading << std::endl;
-        // }
-
         if (shouldProcessScan(scan, odom_pose)) {
                 addScan(scan, odom_pose);
         }
@@ -88,30 +83,6 @@ CallbackReturn MySlam::on_configure(const rclcpp_lifecycle::State &)
         tf_listener_ = std::make_unique<tf2_ros::TransformListener>(*tf_);
         tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(shared_from_this());
         pose_helper_ = std::make_unique<mapper_utils::PoseHelper>(tf_.get());
-
-        /////////////////////////
-
-        // Pose2 T_w_scan_ = Pose2();
-        // std::shared_ptr <sensor_msgs::msg::LaserScan> laser_scan_msg_ = std::make_shared<sensor_msgs::msg::LaserScan>();
-        // // INFINITY is max value
-        // laser_scan_msg_->ranges = {INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, 1.64, 1.64, 1.61, 1.61, 1.61, 1.62, 1.68, 1.62, 3.05, 3.03, 3.17, 3.15, 3.28, 3.26, 3.41, 3.4, 3.56, 3.55, 3.56, 3.57, 3.51, 3.52, 3.48, 3.49, 3.46, 3.46, 3.43, 3.43, 3.41, 3.41, 3.39, 3.4, 3.37, 3.37, 2.78, 3.01, 3.32, 3.09, 5.9, 5.85, 6.37, 6.37, 6.25, 6.25, 6.39, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY};
-
-        // laser_ = std::make_unique<mapper_utils::LaserRangeFinder>();
-        // laser_->setMaximumRange(20.0);
-        // laser_->setMinimumRange(0.3);
-        // laser_->setRangeThreshold(15.0);
-        // laser_->setAngularResolution(0.0087270);
-        // laser_->setMinimumAngle(-1.5708);
-        // laser_->setNumberOfRangeReadings(laser_scan_msg_->ranges.size());
-
-        // if (shouldProcessScan(laser_scan_msg_, T_w_scan_))
-        // {
-        //         addScan(laser_scan_msg_, T_w_scan_);
-        // }
-
-        /////////////////////////
-
-
 
         RCLCPP_INFO(get_logger(), "Configured");
 

@@ -216,6 +216,8 @@ enum class GridStates : uint8_t
 
 typedef rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn CallbackReturn;
 
+typedef std::vector<double> RangeReadingsVector;
+
 } // namespace myslam_types
 
 #endif // MYSLAM_TYPES_HPP

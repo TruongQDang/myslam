@@ -29,7 +29,29 @@ public:
                 laser_->setMinimumAngle(-1.5708);
                 // laser_->setNumberOfRangeReadings(laser_scan_msg_->ranges.size());
 
-                scan_ = new LocalizedRangeScan(laser_scan_msg_, laser_);
+                /////////////////////////
+
+                // Pose2 T_w_scan_ = Pose2();
+                // std::shared_ptr <sensor_msgs::msg::LaserScan> laser_scan_msg_ = std::make_shared<sensor_msgs::msg::LaserScan>();
+                // // INFINITY is max value
+                // laser_scan_msg_->ranges = {INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, 1.64, 1.64, 1.61, 1.61, 1.61, 1.62, 1.68, 1.62, 3.05, 3.03, 3.17, 3.15, 3.28, 3.26, 3.41, 3.4, 3.56, 3.55, 3.56, 3.57, 3.51, 3.52, 3.48, 3.49, 3.46, 3.46, 3.43, 3.43, 3.41, 3.41, 3.39, 3.4, 3.37, 3.37, 2.78, 3.01, 3.32, 3.09, 5.9, 5.85, 6.37, 6.37, 6.25, 6.25, 6.39, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY};
+
+                // laser_ = std::make_unique<mapper_utils::LaserRangeFinder>();
+                // laser_->setMaximumRange(20.0);
+                // laser_->setMinimumRange(0.3);
+                // laser_->setRangeThreshold(15.0);
+                // laser_->setAngularResolution(0.0087270);
+                // laser_->setMinimumAngle(-1.5708);
+                // laser_->setNumberOfRangeReadings(laser_scan_msg_->ranges.size());
+
+                // if (shouldProcessScan(laser_scan_msg_, T_w_scan_))
+                // {
+                //         addScan(laser_scan_msg_, T_w_scan_);
+                // }
+
+                /////////////////////////
+
+                // scan_ = new LocalizedRangeScan(laser_scan_msg_, laser_);
                 scan_->setCorrectedPose(T_w_scan_);
                 scan_->setOdometricPose(T_w_scan_);
 

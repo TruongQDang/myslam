@@ -31,147 +31,181 @@ class CorrelationGrid;
 class LocalizedRangeScan;
 class PoseHelper;
 class CoordinateConverter;
+class LaserRangeFinder;
 
 using namespace ::myslam_types;
-
-//////////////////////////////////////////////////////////////
-
 
 ////////////////////////////////////////////////////////////
 
 class LaserRangeFinder
 {
+private:
+        double range_threshold_;
+
+        double minimum_range_;
+        double maximum_range_;
+
+        double minimum_angle_;
+        double maximum_angle_;
+
+        double angular_resolution_;
+
+        uint32_t number_of_range_readings_;
+
+        Pose2 T_robot_laser_;
+
+        std::string frame_id_;
+
 public:
         LaserRangeFinder()
         {
-
         }
 
-        /**
-         * Sets this range finder sensor's minimum range
-         * @param minimum_range
-         */
+        LaserRangeFinder(const sensor_msgs::msg::LaserScan::ConstSharedPtr & scan, const Pose2& T_robot_laser)
+        {
+                frame_id_ = scan->header.frame_id;
+                T_robot_laser_ = T_robot_laser;
+                minimum_range_ = scan->range_min;
+                maximum_range_ = scan->range_max;
+                minimum_angle_ = scan->angle_min;
+                maximum_angle_ = scan->angle_max;
+                angular_resolution_ = scan->angle_increment;
+        }
+
+        inline void setFrameId(std::string frame_id)
+        {
+                frame_id_ = frame_id;
+        }
+
         inline void setMinimumRange(double minimum_range)
         {
                 minimum_range_ = minimum_range;
-
-                // SetRangeThreshold(GetRangeThreshold());
         }
 
-        /**
-         * Sets this range finder sensor's maximum range
-         * @param maximum_range
-         */
-        inline void setMaximumRange(double maximum_range)
-        {
-                maximum_range_ = maximum_range;
-
-                // SetRangeThreshold(GetRangeThreshold());
-        }
-
-        /**
-         * Sets the range threshold
-         * @param range_threshold
-         */
-        inline void setRangeThreshold(double range_threshold)
-        {
-                range_threshold_ = range_threshold;
-        }
-
-        inline void setMinimumAngle(double minimum_angle)
-        {
-                minimum_angle_ = minimum_angle;
-        }
-
-        inline void setAngularResolution(double angular_resolution)
-        {
-                angular_resolution_ = angular_resolution;
-        }
-
-        inline void setNumberOfRangeReadings(uint32_t number_of_range_readings)
-        {
-                number_of_range_readings_ = number_of_range_readings;
-        }
-
-        /**
-         * Gets the number of range readings each localized range scan must contain to be a valid scan.
-         * @return number of range readings
-         */
-        inline uint32_t getNumberOfRangeReadings() const
-        {
-                return number_of_range_readings_;
-        }
-
-        /**
-         * Gets this range finder sensor's minimum range
-         * @return minimum range
-         */
         inline double getMinimumRange() const
         {
                 return minimum_range_;
         }
 
-
-        /**
-         * Gets the range threshold
-         * @return range threshold
-         */
-        inline double getRangeThreshold() const
+        inline void setMaximumRange(double maximum_range)
         {
-                return range_threshold_;
+                maximum_range_ = maximum_range;
         }
 
-        /**
-         * Gets this range finder sensor's maximum range
-         * @return maximum range
-         */
         inline double getMaximumRange() const
         {
                 return maximum_range_;
         }
 
-        /**
-         * Gets this range finder sensor's minimum angle
-         * @return minimum angle
-         */
+        inline double getRangeThreshold() const
+        {
+                return range_threshold_;
+        }
+
+        inline void setRangeThreshold(double range_threshold)
+        {
+                range_threshold_ = range_threshold;
+        }
+
+        inline void setMaximumAngle(double maximum_angle)
+        {
+                maximum_angle_ = maximum_angle;
+                updateNumberOfRangeReadings();
+        }
+
+        inline double getMaximumAngle()
+        {
+                return maximum_angle_;
+        }
+
+        inline void setMinimumAngle(double minimum_angle)
+        {
+                minimum_angle_ = minimum_angle;
+                updateNumberOfRangeReadings();
+        }
+
         inline double getMinimumAngle() const
         {
                 return minimum_angle_;
         }
 
-        /**
-         * Gets this range finder sensor's angular resolution
-         * @return angular resolution
-         */
+
+        inline void setAngularResolution(double angular_resolution)
+        {
+                angular_resolution_ = angular_resolution;
+                updateNumberOfRangeReadings();
+        }
+
         inline double getAngularResolution() const
         {
                 return angular_resolution_;
         }
 
-        /**
-         * Gets this range finder sensor's offset
-         * @return offset pose
-         */
-        inline const Pose2 &getOffsetPose() const
+        inline uint32_t getNumberOfRangeReadings() const
         {
-                return offset_pose_;
+                return number_of_range_readings_;
         }
 
-private:
-        double range_threshold_;
-        double minimum_range_;
-        double maximum_range_;
-        double minimum_angle_;
-        double angular_resolution_;
-        uint32_t number_of_range_readings_;
-        Pose2 offset_pose_;
-};
+        inline void setPose_RobotLaser(const Pose2 &pose)
+        {
+                T_robot_laser_ = pose;
+        }
+
+        inline const Pose2 &getPose_RobotLaser() const
+        {
+                return T_robot_laser_;
+        }
+
+        void updateNumberOfRangeReadings()
+        {
+                number_of_range_readings_ = static_cast<uint32_t>(std::round(
+                        (getMaximumAngle() -  
+                        getMinimumAngle()) /
+                        getAngularResolution()));
+        }
+}; // LaserRangeFinder
 
 ////////////////////////////////////////////////////////////
 
+typedef std::vector<double> RangeReadingsVector;
+
 class LocalizedRangeScan
 {
+private:
+        uint32_t scan_id_;
+        Pose2 corrected_pose_;
+        Pose2 odom_pose_;
+        /**
+         * Average of all the point readings
+         */
+        Pose2 barycenter_pose_;
+        std::unique_ptr<double[]> range_readings_;
+        uint32_t number_of_range_readings_;
+        double time_;
+        BoundingBox2 bounding_box_;
+        bool is_dirty_;
+        std::vector<Eigen::Vector2d> point_readings_;
+        std::vector<Eigen::Vector2d> unfiltered_point_readings_;
+        LaserRangeFinder *laser_;
+
+        mutable boost::shared_mutex lock_;
+
 public:
+        LocalizedRangeScan()
+        {
+        }
+
+        LocalizedRangeScan(LaserRangeFinder *laser, const RangeReadingsVector &range_readings)
+        : is_dirty_(true), laser_(laser) 
+        {
+                number_of_range_readings_ = range_readings.size();
+
+                range_readings_ = std::make_unique<double[]>(number_of_range_readings_);
+                std::copy(range_readings.begin(), range_readings.end(), range_readings_.get());
+        }
+
+        
+
         LocalizedRangeScan(const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan);
 
         LocalizedRangeScan(const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan, LaserRangeFinder *laser)
@@ -181,12 +215,13 @@ public:
                 is_dirty_ = true;
         } 
 
-        inline void setScanId(int32_t scan_id)
+        inline void setScanId(uint32_t scan_id)
         {
+                std::cout << "set scan id" << std::endl;
                 scan_id_ = scan_id;
         }
 
-        inline int32_t getScanId()
+        inline uint32_t getScanId()
         {
                 return scan_id_;
         }
@@ -231,7 +266,7 @@ public:
                 corrected_pose_ = pose;
         }
 
-        inline void setTime(rclcpp::Time time)
+        inline void setTime(double time)
         {
                 time_ = time;
         }
@@ -272,7 +307,7 @@ public:
          */
         inline Pose2 getSensorPose() const
         {
-                return Pose2::applyTransform(corrected_pose_, laser_->getOffsetPose());
+                return Pose2::applyTransform(corrected_pose_, laser_->getPose_RobotLaser());
         }
 
         /**
@@ -319,25 +354,34 @@ private:
                         Pose2 scan_pose = getSensorPose();
 
                         // compute point readings
-                        Eigen::Vector2d range_points_sum;
+                        Eigen::Vector2d range_points_sum(0,0);
                         uint32_t beam_num = 0;
+
+                        std::cout << "minimum range: " << laser_->getMinimumRange() << std::endl;
+                        std::cout << "range threshold: " << range_threshold << std::endl;
+                        std::cout << "number of range reading " << laser_->getNumberOfRangeReadings() << std::endl; 
+
                         for (uint32_t i = 0; i < laser_->getNumberOfRangeReadings(); i++, beam_num++) {
-                                // iterate through all range readings
                                 double range_reading = getRangeReadings()[i];
+                                std::cout << "range reading: " << range_reading << std::endl;
                                 double angle = scan_pose.getHeading() + minimum_angle + beam_num * angular_resolution;
                                 Eigen::Vector2d point;
                                 point.x() = scan_pose.getX() + (range_reading * cos(angle));
                                 point.y() = scan_pose.getY() + (range_reading * sin(angle));
         
-                                if (range_reading < laser_->getMinimumRange() && range_reading > range_threshold) {
-                                        // if not within valid range
+                                if (!math::InRange(range_reading, laser_->getMinimumRange(), range_threshold)) {
                                         unfiltered_point_readings_.push_back(point);
-                                } else {
-                                        // if within valid range
-                                        point_readings_.push_back(point);
-                                        unfiltered_point_readings_.push_back(point);
-                                        range_points_sum += point;
+                                        continue;
                                 }
+
+                                point_readings_.push_back(point);
+                                unfiltered_point_readings_.push_back(point);
+                                range_points_sum += point;
+                        }
+
+                        std::cout << "Filtered points" << std::endl;
+                        for (auto &point : point_readings_) {
+                                std::cout << point << std::endl;
                         }
 
                         // compute barycenter
@@ -361,23 +405,6 @@ private:
                 is_dirty_ = false;
                 
         }
-
-        int32_t scan_id_;
-        Pose2 corrected_pose_;
-        Pose2 odom_pose_;
-        /**
-         * Average of all the point readings
-         */
-        Pose2 barycenter_pose_;
-        std::unique_ptr<double[]> range_readings_;
-        rclcpp::Time time_;
-        BoundingBox2 bounding_box_;
-        bool is_dirty_;
-        std::vector<Eigen::Vector2d> point_readings_;
-        std::vector<Eigen::Vector2d> unfiltered_point_readings_;
-        LaserRangeFinder *laser_;
-
-        mutable boost::shared_mutex lock_;
 
 }; // LocalizedRangeScan
 
@@ -704,7 +731,6 @@ public:
                 }
 
                 try {
-                        std::cout << "allocate " << getDataSize() << std::endl;
                         data_ = new T[getDataSize()];
                         
 
@@ -712,7 +738,6 @@ public:
                         {
                                 coordinate_converter_ = new CoordinateConverter();
                         }
-                        std::cout << "fine until here" << std::endl;
                         coordinate_converter_->setSize(Size2<int32_t>(width, height));
                 }
                 catch (...) {
@@ -1014,8 +1039,27 @@ protected:
 
 class ScanManager
 {
+private:
+        std::map<int, LocalizedRangeScan *> scans_;
+        std::vector<LocalizedRangeScan *> running_scans_;
+        LocalizedRangeScan *last_scan_;
+        uint32_t next_scan_id_;
+
+        uint32_t running_buffer_maximum_size_;
+        double running_buffer_maximum_distance_;
+
 public:
         ScanManager() 
+        : last_scan_(nullptr),
+        next_scan_id_(0)
+        {
+        }
+
+        ScanManager(uint32_t running_buffer_maximum_size, double running_buffer_maximum_distance)
+            : last_scan_(nullptr),
+              next_scan_id_(0),
+              running_buffer_maximum_size_(running_buffer_maximum_size),
+              running_buffer_maximum_distance_(running_buffer_maximum_distance)
         {
         }
 
@@ -1026,26 +1070,14 @@ public:
         std::vector<LocalizedRangeScan *> getAllScans()
         {
                 std::vector<LocalizedRangeScan *> scans;
+                scans.reserve(scans_.size());
+
+                for (const auto &scan : scans_)
+                {
+                        scans.push_back(scan.second);
+                }
 
                 return scans;
-        }
-
-        /**
-         * Gets last scan of given sensor
-         * @return last localized range scan of sensor
-         */
-        inline LocalizedRangeScan *getLastScan()
-        {
-                return last_scan_;
-        }
-
-        inline void addScan(LocalizedRangeScan *scan) 
-        {
-                // assign unique scan id
-                scan->setScanId(next_scan_id_);
-                next_scan_id_++;
-                // add to scan buffer
-                scans_.emplace(scan->getScanId(), scan);
         }
 
         inline void setLastScan(LocalizedRangeScan *scan)
@@ -1053,15 +1085,39 @@ public:
                 last_scan_ = scan;
         }
 
-
-private:
-        std::map<int, LocalizedRangeScan *> scans_;
-        std::vector<LocalizedRangeScan *> running_scans_;
-        LocalizedRangeScan *last_scan_;
-        uint32_t next_scan_id_;
         
-        uint32_t running_buffer_maximum_size_;
-        double running_buffer_maximum_distance_;
+        inline LocalizedRangeScan *getLastScan()
+        {
+                return last_scan_;
+        }
+
+
+        inline void addScan(LocalizedRangeScan *scan) 
+        {
+                std::cout << "traced from 4::1::0" << std::endl;
+                if (scan == nullptr) {
+                        std::cout << "scan is nullptr" << std::endl;
+                }
+                // assign unique scan id
+                scan->setScanId(next_scan_id_);
+                // add to scan buffer
+                std::cout << "number of range reading before add: " << scan->getLaserRangeFinder()->getNumberOfRangeReadings() << std::endl;
+                scans_.emplace(next_scan_id_, scan);
+                next_scan_id_++;
+                std::cout << "traced from 4::1::2" << std::endl;
+        }
+
+        void setRunningScanBufferSize(uint32_t scan_buffer_size)
+        {
+                running_buffer_maximum_size_ = scan_buffer_size;
+        }
+
+        void setRunningScanBufferMaximumDistance(double scan_buffer_max_distance)
+        {
+                running_buffer_maximum_distance_ = scan_buffer_max_distance;
+        }
+
+
 
 }; // ScanManager
 
@@ -1070,8 +1126,27 @@ private:
 class Mapper 
 {
 public:
+        Mapper()
+        : scan_manager_(nullptr),
+        initialized_(false)
+        {
+        }
+
+        void initialize(double range_threshold)
+        {
+                if (initialized_) {
+                        return;
+                }
+
+                std::cout << "still fine within mapper initialize" << std::endl;
+
+                scan_manager_ = std::make_unique<ScanManager>(scan_buffer_size_, scan_buffer_maximum_scan_distance_);
+
+                initialized_ = true;
+        }
+
         template <class NodeT>
-        Mapper(const NodeT &node);
+        void configure(const NodeT &node);
 
         inline double getMinimumTravelDistance() const {
                 return minimum_travel_distance_;
@@ -1116,10 +1191,31 @@ public:
         }
 
 private:
-        ScanManager *scan_manager_;
+        std::unique_ptr<ScanManager> scan_manager_;
+
+        // state
+        bool initialized_;
+
         // parameters
         double minimum_travel_distance_;
         double minimum_travel_heading_;
+        /**
+         * Scan buffer size is the length of the scan chain stored for scan matching.
+         * "scanBufferSize" should be set to approximately "scanBufferMaximumScanDistance" / "minimumTravelDistance".
+         * The idea is to get an area approximately 20 meters long for scan matching.
+         * For example, if we add scans every minimumTravelDistance == 0.3 meters, then "scanBufferSize"
+         * should be 20 / 0.3 = 67.)
+         * Default value is 67.
+         */
+        uint32_t scan_buffer_size_;
+        /**
+         * Scan buffer maximum scan distance is the maximum distance between the first and last scans
+         * in the scan chain stored for matching.
+         * Default value is 20.0.
+         */
+        double scan_buffer_maximum_scan_distance_;
+        
+
         ////////////////////////////////////////////////////////////
         // NOTE: These two values are dependent on the resolution.  If the resolution is too small,
         // then not many beams will hit the cell!

@@ -27,7 +27,7 @@ public:
                 laser_->setRangeThreshold(15.0);
                 laser_->setAngularResolution(0.0087270);
                 laser_->setMinimumAngle(-1.5708);
-                laser_->setNumberOfRangeReadings(laser_scan_msg_->ranges.size());
+                // laser_->setNumberOfRangeReadings(laser_scan_msg_->ranges.size());
 
                 scan_ = new LocalizedRangeScan(laser_scan_msg_, laser_);
                 scan_->setCorrectedPose(T_w_scan_);

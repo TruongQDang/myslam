@@ -5,7 +5,7 @@ namespace mapper_utils
 {
 
 template <class NodeT>
-Mapper::Mapper(const NodeT &node)
+void Mapper::configure(const NodeT &node)
 {
         double minimum_travel_distance = 0.5;
         if (!node->has_parameter("minimum_travel_distance"))
@@ -24,21 +24,30 @@ Mapper::Mapper(const NodeT &node)
         minimum_travel_heading_ = minimum_travel_heading;
 }
 
-template Mapper::Mapper(const rclcpp_lifecycle::LifecycleNode::SharedPtr &);
+// explicit instantiation for the supported template types
+template void Mapper::configure(const rclcpp_lifecycle::LifecycleNode::SharedPtr &);
 
 bool Mapper::process(LocalizedRangeScan *scan, Eigen::Matrix3d *covariance)
 {
-
         if (scan != nullptr) {
+                LaserRangeFinder *laser = scan->getLaserRangeFinder();
+
+                if (initialized_ == false) {
+                        // initialize mapper's utilities
+                        std::cout << "still fine" << std::endl;
+                        initialize(laser->getRangeThreshold());
+                }
 
                 // add scan to buffer and assign id
+                std::cout << "traced from 4::0" << std::endl;
                 scan_manager_->addScan(scan);
-
+                std::cout << "traced from 4::1" << std::endl;
                 scan_manager_->setLastScan(scan);
+                std::cout << "traced from 4::2" << std::endl;
 
                 return true;
         }
-
+        std::cout << "traced from 4::3" << std::endl;
         return false;
 }
 
@@ -47,7 +56,9 @@ OccupancyGrid *Mapper::getOccupancyGrid(const double &resolution)
         OccupancyGrid *occ_grid = nullptr;
         return OccupancyGrid::createFromScans(
                 getAllProcessedScans(),
-                resolution, (uint32_t)getParamMinPassThrough(), (double)getParamOccupancyThreshold());
+                resolution, 
+                (uint32_t)getParamMinPassThrough(), 
+                (double)getParamOccupancyThreshold());
 }
 
 const std::vector<LocalizedRangeScan *> Mapper::getAllProcessedScans() const
@@ -56,8 +67,11 @@ const std::vector<LocalizedRangeScan *> Mapper::getAllProcessedScans() const
 
         if (scan_manager_ != nullptr)
         {
+                std::cout << "about to get scans" << std::endl;
                 all_scans = scan_manager_->getAllScans();
         }
+
+        std::cout << "got " << all_scans.size() << " scans" << std::endl;
 
         return all_scans;
 }
@@ -80,8 +94,6 @@ OccupancyGrid::OccupancyGrid(
         // {
         //         throw Exception("Resolution cannot be 0");
         // }
-
-        std::cout << "height that is set: " << this->getHeight() << std::endl;
 
         min_pass_through_ = 2;
         occupancy_threshold_ = 0.1;
@@ -106,9 +118,8 @@ OccupancyGrid *OccupancyGrid::createFromScans(
         OccupancyGrid *pOccupancyGrid = new OccupancyGrid(width, height, offset, resolution);
         pOccupancyGrid->setMinPassThrough(min_pass_through);
         pOccupancyGrid->setOccupancyThreshold(occupancy_threshold);
-        std::cout << "width: " << width << std::endl;
-        std::cout << "offset: " << offset << std::endl;
-        std::cout << "height that is computed: " << height << std::endl;
+        std::cout << "width of occgrid: " << pOccupancyGrid->getWidth() << std::endl;
+        std::cout << "height of occgrid: " << pOccupancyGrid->getHeight() << std::endl;
         pOccupancyGrid->createFromScans(scans);
 
         return pOccupancyGrid;
@@ -122,6 +133,7 @@ void OccupancyGrid::computeGridDimensions(
         Eigen::Vector2d &offset)
 {
         BoundingBox2 bounding_box;
+        
         for (const auto &scan : scans) {
                 if (scan == nullptr) {
                         continue;
@@ -140,14 +152,8 @@ void OccupancyGrid::computeGridDimensions(
 
 void OccupancyGrid::createFromScans(const std::vector<LocalizedRangeScan *> &scans)
 {
-        std::cout << "height: " << getHeight() << std::endl; 
         cell_pass_cnt_->resize(getWidth(), getHeight());
-        if (cell_pass_cnt_->getDataPointer() == nullptr) {
-                std::cout << "cannot init pointer for cellpass" << std::endl; 
-        }
-        std::cout << "ok1" << std::endl;
         cell_pass_cnt_->getCoordinateConverter()->setOffset(getCoordinateConverter()->getOffset());
-        std::cout << "ok2" << std::endl;
         cell_hit_cnt_->resize(getWidth(), getHeight());
         cell_hit_cnt_->getCoordinateConverter()->setOffset(getCoordinateConverter()->getOffset());
 
@@ -157,7 +163,6 @@ void OccupancyGrid::createFromScans(const std::vector<LocalizedRangeScan *> &sca
                 }
 
                 LocalizedRangeScan *scan = scan_iter;
-                std::cout << "ok3" << std::endl;
                 addScan(scan);
         }
 

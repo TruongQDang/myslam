@@ -67,8 +67,10 @@ protected:
                 const Eigen::Matrix3d &cov,
                 const rclcpp::Time &t);
         LocalizedRangeScan *getLocalizedRangeScan(
+                mapper_utils::LaserRangeFinder *laser,
                 const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan,
                 Pose2 &odom_pose);
+        void makeLaser(const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan);
         bool updateMap();
 
         // ROS stuff
@@ -96,6 +98,7 @@ protected:
         // // helpers
         std::unique_ptr<mapper_utils::PoseHelper> pose_helper_;
         std::unique_ptr<mapper_utils::Mapper> mapper_;
+        std::unique_ptr<mapper_utils::LaserRangeFinder> laser_;
 
         // // internal state
         std::vector<std::unique_ptr<boost::thread>> threads_;

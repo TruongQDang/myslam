@@ -388,7 +388,7 @@ void MySlam::publishVisualizations()
         og.info.origin.orientation.w = 1.0;
         og.header.frame_id = odom_frame_;
 
-        double map_update_interval = 4.0; // 10.0 default
+        double map_update_interval = 5.0; // 10.0 default
         if (!this->has_parameter("map_update_interval"))
         {
                 this->declare_parameter("map_update_interval", map_update_interval);

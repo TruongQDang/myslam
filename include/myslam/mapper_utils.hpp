@@ -343,23 +343,25 @@ private:
                         double minimum_angle = laser_->getMinimumAngle();
                         double angular_resolution = laser_->getAngularResolution();
                         Pose2 scan_pose = getSensorPose();
-
                         // compute point readings
                         Eigen::Vector2d range_points_sum(0,0);
                         uint32_t beam_num = 0;
 
                         std::cout << "minimum range: " << laser_->getMinimumRange() << std::endl;
                         std::cout << "range threshold: " << range_threshold << std::endl;
-                        std::cout << "number of range reading " << laser_->getNumberOfRangeReadings() << std::endl; 
+                        std::cout << "scan_pose x: " << scan_pose.getX() << std::endl;
+                        std::cout << "heading of robot: " << scan_pose.getHeading() << std::endl;
 
                         for (uint32_t i = 0; i < laser_->getNumberOfRangeReadings(); i++, beam_num++) {
                                 double range_reading = getRangeReadings()[i];
-                                std::cout << "range reading: " << range_reading << std::endl;
                                 double angle = scan_pose.getHeading() + minimum_angle + beam_num * angular_resolution;
                                 Eigen::Vector2d point;
                                 point.x() = scan_pose.getX() + (range_reading * cos(angle));
                                 point.y() = scan_pose.getY() + (range_reading * sin(angle));
-        
+
+                                std::cout << "x: " << point.x() << std::endl;
+                                std::cout << "y: " << point.y() << std::endl;
+
                                 if (!math::InRange(range_reading, laser_->getMinimumRange(), range_threshold)) {
                                         unfiltered_point_readings_.push_back(point);
                                         continue;
@@ -370,10 +372,6 @@ private:
                                 range_points_sum += point;
                         }
 
-                        std::cout << "Filtered points" << std::endl;
-                        for (auto &point : point_readings_) {
-                                std::cout << point << std::endl;
-                        }
 
                         // compute barycenter
                         double n_points = static_cast<double>(point_readings_.size());
@@ -673,7 +671,7 @@ public:
                 int32_t index = grid(0) + (grid(1) * width_step_);
 
                 if (boundary_check == true) {
-                        assert(index < getDataSize());
+                        assert(math::IsUpTo(index, getDataSize()));
                 }
 
                 return index;
@@ -847,10 +845,8 @@ public:
         {
                 BoundingBox2 bounding_box;
 
-                for (const auto &scan : scans)
-                {
-                        if (scan == nullptr)
-                        {
+                for (const auto &scan : scans) {
+                        if (scan == nullptr) {
                                 continue;
                         }
 
@@ -890,8 +886,7 @@ public:
                                           grid_to(1), cell_updater);
 
                 // for the end point
-                if (is_endpoint_valid)
-                {
+                if (is_endpoint_valid) {
                         if (cell_pass_cnt_->isValidGridIndex(grid_to)) {
                                 int32_t index = cell_pass_cnt_->getGridIndex(grid_to, false);
 
@@ -921,10 +916,6 @@ public:
         {
                 if (cell_pass_cnt > min_pass_through_)
                 {
-                        if (static_cast<double>(cell_pass_cnt) == 0.0)
-                        {
-                                std::cout << "invalid division" << std::endl;
-                        }
                         double hit_ratio = static_cast<double>(cell_hit_cnt) / static_cast<double>(cell_pass_cnt);
 
                         if (hit_ratio > occupancy_threshold_) {
@@ -1052,17 +1043,6 @@ public:
                 uint8_t *data_ptr = getDataPointer();
                 uint32_t *cell_pass_cnt_ptr = cell_pass_cnt_->getDataPointer();
                 uint32_t *cell_hit_cnt_ptr = cell_hit_cnt_->getDataPointer();
-
-                if (data_ptr == nullptr) {
-                        std::cout << "dat_ptr null" << std::endl;
-                } 
-                
-                if (cell_pass_cnt_ptr == nullptr) {
-                        std::cout << "cell_pass_ptr null" << std::endl;
-                }
-                if (cell_hit_cnt_ptr == nullptr) {
-                        std::cout << "cell_hit_ptr null" << std::endl;
-                }
 
                 std::cout << "ok7" << std::endl;
 
@@ -1339,15 +1319,15 @@ public:
         bool getPose(
             Pose2 &pose,
             const rclcpp::Time &t,
-            const std::string &from_frame,
-            const std::string &to_frame)
+            const std::string &target_frame,
+            const std::string &source_frame)
         {
                 geometry_msgs::msg::TransformStamped tmp_pose;
                 try
                 {
                         tmp_pose = tf_->lookupTransform(
-                            to_frame,
-                            from_frame,
+                            target_frame,
+                            source_frame,
                             t);
                 }
                 catch (const tf2::TransformException &ex)

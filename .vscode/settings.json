@@ -93,6 +93,9 @@
                 "__split_buffer": "cpp",
                 "set": "cpp",
                 "*.txx": "cpp",
-                "valarray": "cpp"
+                "valarray": "cpp",
+                "ranges": "cpp",
+                "queue": "cpp",
+                "stack": "cpp"
         }
 }

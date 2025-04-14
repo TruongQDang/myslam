@@ -31,6 +31,17 @@ inline bool InRange(const T &value, const T &a, const T &b)
         return value >= a && value <= b;
 }
 
+/**
+ * Checks whether value is in the range [0;maximum)
+ * @param value
+ * @param maximum
+ */
+template <typename T>
+inline bool IsUpTo(const T &value, const T &maximum)
+{
+        return value >= 0 && value < maximum;
+}
+
 } // namespace math
 
 #endif // MATH_SLAM_HPP

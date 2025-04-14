@@ -52,11 +52,8 @@ bool Mapper::process(LocalizedRangeScan *scan, Eigen::Matrix3d *covariance)
                 }
 
                 // add scan to buffer and assign id
-                std::cout << "traced from 4::0" << std::endl;
                 scan_manager_->addScan(scan);
-                std::cout << "traced from 4::1" << std::endl;
                 scan_manager_->setLastScan(scan);
-                std::cout << "traced from 4::2" << std::endl;
 
                 return true;
         }

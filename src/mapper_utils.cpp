@@ -13,9 +13,36 @@ void CellUpdater::operator()(uint32_t index)
         occupancy_grid_->updateCell(&data_ptr[index], cell_pass_cnt_ptr[index], cell_hit_cnt_ptr[index]);
 }
 
-////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+template<class T>
+double ScanMatcher::matchScan(
+        LocalizedRangeScan *scan,
+        const T &base_scans,
+        Pose2 &mean, Eigen::Matrix3d &covariance,
+        bool do_penalize,
+        bool do_refine_match)
+{
+
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+Vertex<LocalizedRangeScan> *MapperGraph::addVertex(LocalizedRangeScan *scan)
+{
+
+}
+
+void MapperGraph::addEdges(LocalizedRangeScan *scan, const Eigen::Matrix3d &covariance)
+{
+
+}
+
+bool MapperGraph::tryCloseLoop(LocalizedRangeScan *scan)
+{
+
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <class NodeT>
 void Mapper::configure(const NodeT &node)
@@ -86,14 +113,7 @@ bool Mapper::process(LocalizedRangeScan *scan, Eigen::Matrix3d *covariance)
 
                 scan_manager_->addRunningScan(scan);
 
-                // if (m_pDoLoopClosing->GetValue())
-                // {
-                //         std::vector<Name> deviceNames = m_pMapperSensorManager->GetSensorNames();
-                //         const_forEach(std::vector<Name>, &deviceNames)
-                //         {
-                //                 m_pGraph->TryCloseLoop(pScan, *iter);
-                //         }
-                // }
+                graph_->tryCloseLoop(scan);
 
                 scan_manager_->setLastScan(scan);
 
@@ -102,6 +122,8 @@ bool Mapper::process(LocalizedRangeScan *scan, Eigen::Matrix3d *covariance)
         
         return false;
 }
+
+
 
 
 

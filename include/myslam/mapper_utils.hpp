@@ -1235,11 +1235,11 @@ public:
          */
         template <class T = std::vector<LocalizedRangeScan *>>
         double matchScan(
-                        LocalizedRangeScan *scan,
-                        const T &base_scans,
-                        Pose2 &mean, Eigen::Matrix3d &covariance,
-                        bool do_penalize = true,
-                        bool do_refine_match = true);
+                LocalizedRangeScan *scan,
+                const T &base_scans,
+                Pose2 &mean, Eigen::Matrix3d &covariance,
+                bool do_penalize = true,
+                bool do_refine_match = true);
 }; // ScanMatcher
 
 ///////////////////////////////////////////////////////////////////////
@@ -1256,14 +1256,17 @@ public:
          * Adds a vertex representing the given scan to the graph
          * @param pScan
          */
-        Vertex<LocalizedRangeScan> *addVertex(LocalizedRangeScan *pScan);
+        Vertex<LocalizedRangeScan> *addVertex(LocalizedRangeScan *scan);
 
         /**
          * Link scan to last scan and nearby chains of scans
          * @param pScan
          * @param rCovariance uncertainty of match
          */
-        void addEdges(LocalizedRangeScan *pScan, const Eigen::Matrix3d &rCovariance);
+        void addEdges(LocalizedRangeScan *scan, const Eigen::Matrix3d &covariance);
+
+
+        bool tryCloseLoop(LocalizedRangeScan *scan);
 
 }; // MapperGraph
 

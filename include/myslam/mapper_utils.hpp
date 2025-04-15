@@ -25,6 +25,9 @@ namespace mapper_utils
 
 class Mapper;
 class ScanManager;
+class ScanMatcher;
+template <typename T>
+class Edge;
 class LaserRangeFinder;
 class OccupancyGrid;
 class CellUpdater;
@@ -53,7 +56,7 @@ private:
 
         uint32_t number_of_range_readings_;
 
-        Pose2 T_robot_laser_;
+        Pose2 offset_pose_;
 
         std::string frame_id_;
 
@@ -62,10 +65,10 @@ public:
         {
         }
 
-        LaserRangeFinder(const sensor_msgs::msg::LaserScan::ConstSharedPtr & scan, const Pose2& T_robot_laser)
+        LaserRangeFinder(const sensor_msgs::msg::LaserScan::ConstSharedPtr & scan, const Pose2& offset_pose)
         {
                 frame_id_ = scan->header.frame_id;
-                T_robot_laser_ = T_robot_laser;
+                offset_pose_ = offset_pose;
                 minimum_range_ = scan->range_min;
                 maximum_range_ = scan->range_max;
                 minimum_angle_ = scan->angle_min;
@@ -147,14 +150,14 @@ public:
                 return number_of_range_readings_;
         }
 
-        inline void setPose_RobotLaser(const Pose2 &pose)
+        inline void setOffsetPose(const Pose2 &offset_pose)
         {
-                T_robot_laser_ = pose;
+                offset_pose_ = offset_pose;
         }
 
-        inline const Pose2 &getPose_RobotLaser() const
+        inline const Pose2 &getOffsetPose() const
         {
-                return T_robot_laser_;
+                return offset_pose_;
         }
 
         void updateNumberOfRangeReadings()
@@ -217,44 +220,42 @@ public:
                 return scan_id_;
         }
 
-        /**
-         * Gets the odometric pose of this scan
-         * @return odometric pose of this scan
-         */
-        inline const Pose2 &getOdometricPose() const
-        {
-                return odom_pose_;
-        }
-
-        /**
-         * Sets the odometric pose of this scan
-         * @param pose
-         */
         inline void setOdometricPose(const Pose2 &pose)
         {
                 odom_pose_ = pose;
         }
 
-        /**
-         * Gets the (possibly corrected) robot pose at which this scan was taken.  The corrected robot pose of the scan
-         * is usually set by an external module such as a localization or mapping module when it is determined
-         * that the original pose was incorrect.  The external module will set the correct pose based on
-         * additional sensor data and any context information it has.  If the pose has not been corrected,
-         * a call to this method returns the same pose as GetOdometricPose().
-         * @return corrected pose
-         */
+        inline const Pose2 &getOdometricPose() const
+        {
+                return odom_pose_;
+        }
+
+        inline void setCorrectedPose(const Pose2 &pose)
+        {
+                corrected_pose_ = pose;
+        }
+
         inline const Pose2 &getCorrectedPose() const
         {
                 return corrected_pose_;
         }
 
-        /**
-         * Moves the scan by moving the robot pose to the given location.
-         * @param pose new pose of the robot of this scan
-         */
-        inline void setCorrectedPose(const Pose2 &pose)
+        void setSensorPose(const Pose2& scan_pose)
         {
-                corrected_pose_ = pose;
+                corrected_pose_ = getCorrectedAt(scan_pose);
+                update();
+        }
+
+        /**
+         * @brief Computes the pose of the robot if the sensor were at the given pose
+         * @param sensor_pose sensor pose
+         * @return robot pose
+         */
+        inline Pose2 getCorrectedAt(const Pose2 &sensor_pose) const
+        {
+                return Pose2::transformPose(
+                        sensor_pose, 
+                        getLaserRangeFinder()->getOffsetPose().inverse());
         }
 
         inline void setTime(double time)
@@ -262,10 +263,6 @@ public:
                 time_ = time;
         }
 
-        /**
-         * Gets the laser range finder sensor that generated this scan
-         * @return laser range finder sensor of this scan
-         */
         inline LaserRangeFinder *getLaserRangeFinder() const
         {
                 return laser_;
@@ -298,7 +295,7 @@ public:
          */
         inline Pose2 getSensorPose() const
         {
-                return Pose2::applyTransform(corrected_pose_, laser_->getPose_RobotLaser());
+                return Pose2::transformPose(corrected_pose_, laser_->getOffsetPose());
         }
 
         /**
@@ -1126,6 +1123,36 @@ public:
                 return scans;
         }
 
+
+        inline void addRunningScan(LocalizedRangeScan *scan)
+        {
+                // running_scans_.push_back(scan);
+
+                // // vector has at least one element (first line of this function), so this is valid
+                // Pose2 frontScanPose = m_RunningScans.front()->GetSensorPose();
+                // Pose2 backScanPose = m_RunningScans.back()->GetSensorPose();
+
+                // // cap vector size and remove all scans from front of vector that are too far from end of vector
+                // kt_double squaredDistance = frontScanPose.GetPosition().SquaredDistance(
+                //     backScanPose.GetPosition());
+                // while (m_RunningScans.size() > m_RunningBufferMaximumSize ||
+                //        squaredDistance > math::Square(m_RunningBufferMaximumDistance) - KT_TOLERANCE)
+                // {
+                //         // remove front of running scans
+                //         m_RunningScans.erase(m_RunningScans.begin());
+
+                //         // recompute stats of running scans
+                //         frontScanPose = m_RunningScans.front()->GetSensorPose();
+                //         backScanPose = m_RunningScans.back()->GetSensorPose();
+                //         squaredDistance = frontScanPose.GetPosition().SquaredDistance(backScanPose.GetPosition());
+                // }
+        }
+
+        inline std::vector<LocalizedRangeScan *> getRunningScans()
+        {
+                return running_scans_;
+        }
+
         inline void setLastScan(LocalizedRangeScan *scan)
         {
                 last_scan_ = scan;
@@ -1169,8 +1196,131 @@ public:
 
 ///////////////////////////////////////////////////////////////////////
 
+/**
+ * Represents an object in a graph
+ */
+template<typename T>
+class Vertex
+{
+private:
+        T *object_;
+        std::vector<Edge<T> *> edges_; 
+        double score;
+}; // Vertex
+
+///////////////////////////////////////////////////////////////////////
+
+class ScanMatcher
+{
+private:
+public:
+        ScanMatcher()
+        {
+        }
+
+        /**
+         * Parallelize scan matching
+         */
+        void operator()(const double &y) const;
+
+        /**
+         * Match given scan against set of scans
+         * @param pScan scan being scan-matched
+         * @param rBaseScans set of scans whose points will mark cells in grid as being occupied
+         * @param rMean output parameter of mean (best pose) of match
+         * @param rCovariance output parameter of covariance of match
+         * @param doPenalize whether to penalize matches further from the search center
+         * @param doRefineMatch whether to do finer-grained matching if coarse match is good (default is true)
+         * @return strength of response
+         */
+        template <class T = std::vector<LocalizedRangeScan *>>
+        double matchScan(
+                        LocalizedRangeScan *scan,
+                        const T &base_scans,
+                        Pose2 &mean, Eigen::Matrix3d &covariance,
+                        bool do_penalize = true,
+                        bool do_refine_match = true);
+}; // ScanMatcher
+
+///////////////////////////////////////////////////////////////////////
+
+class MapperGraph
+{
+
+public:
+        MapperGraph()
+        {
+        }
+
+        /**
+         * Adds a vertex representing the given scan to the graph
+         * @param pScan
+         */
+        Vertex<LocalizedRangeScan> *addVertex(LocalizedRangeScan *pScan);
+
+        /**
+         * Link scan to last scan and nearby chains of scans
+         * @param pScan
+         * @param rCovariance uncertainty of match
+         */
+        void addEdges(LocalizedRangeScan *pScan, const Eigen::Matrix3d &rCovariance);
+
+}; // MapperGraph
+
+///////////////////////////////////////////////////////////////////////
+
+class ScanSolver
+{
+        ScanSolver()
+        {
+        }
+
+}; // ScanSolver
+
+///////////////////////////////////////////////////////////////////////
+
 class Mapper 
 {
+private:
+        // state
+        bool initialized_;
+
+        // parameters
+        double minimum_travel_distance_;
+        double minimum_travel_heading_;
+        /**
+         * Scan buffer size is the length of the scan chain stored for scan matching.
+         * "scanBufferSize" should be set to approximately "scanBufferMaximumScanDistance" / "minimumTravelDistance".
+         * The idea is to get an area approximately 20 meters long for scan matching.
+         * For example, if we add scans every minimumTravelDistance == 0.3 meters, then "scanBufferSize"
+         * should be 20 / 0.3 = 67.)
+         * Default value is 67.
+         */
+        uint32_t scan_buffer_size_;
+        /**
+         * Scan buffer maximum scan distance is the maximum distance between the first and last scans
+         * in the scan chain stored for matching.
+         * Default value is 20.0.
+         */
+        double scan_buffer_maximum_scan_distance_;
+
+        ////////////////////////////////////////////////////////////
+        // NOTE: These two values are dependent on the resolution.  If the resolution is too small,
+        // then not many beams will hit the cell!
+
+        // Number of beams that must pass through a cell before it will be considered to be occupied
+        // or unoccupied.  This prevents stray beams from messing up the map.
+        uint32_t min_pass_through_;
+
+        // Minimum ratio of beams hitting cell to beams passing through cell to be marked as occupied
+        double occupancy_threshold_;
+
+protected:
+        std::unique_ptr<ScanManager> scan_manager_;
+        std::unique_ptr<ScanMatcher> scan_matcher_;
+        std::unique_ptr<MapperGraph> graph_;
+        std::unique_ptr<ScanSolver> scan_solver_;
+
 public:
         Mapper()
         : scan_manager_(nullptr),
@@ -1183,8 +1333,6 @@ public:
                 if (initialized_) {
                         return;
                 }
-
-                std::cout << "still fine within mapper initialize" << std::endl;
 
                 scan_manager_ = std::make_unique<ScanManager>(scan_buffer_size_, scan_buffer_maximum_scan_distance_);
 
@@ -1257,42 +1405,6 @@ public:
                 return occupancy_threshold_;
         }
 
-private:
-        std::unique_ptr<ScanManager> scan_manager_;
-
-        // state
-        bool initialized_;
-
-        // parameters
-        double minimum_travel_distance_;
-        double minimum_travel_heading_;
-        /**
-         * Scan buffer size is the length of the scan chain stored for scan matching.
-         * "scanBufferSize" should be set to approximately "scanBufferMaximumScanDistance" / "minimumTravelDistance".
-         * The idea is to get an area approximately 20 meters long for scan matching.
-         * For example, if we add scans every minimumTravelDistance == 0.3 meters, then "scanBufferSize"
-         * should be 20 / 0.3 = 67.)
-         * Default value is 67.
-         */
-        uint32_t scan_buffer_size_;
-        /**
-         * Scan buffer maximum scan distance is the maximum distance between the first and last scans
-         * in the scan chain stored for matching.
-         * Default value is 20.0.
-         */
-        double scan_buffer_maximum_scan_distance_;
-        
-
-        ////////////////////////////////////////////////////////////
-        // NOTE: These two values are dependent on the resolution.  If the resolution is too small,
-        // then not many beams will hit the cell!
-
-        // Number of beams that must pass through a cell before it will be considered to be occupied
-        // or unoccupied.  This prevents stray beams from messing up the map.
-        uint32_t min_pass_through_;
-
-        // Minimum ratio of beams hitting cell to beams passing through cell to be marked as occupied
-        double occupancy_threshold_;
 }; // Mapper
 
 //////////////////////////////////////////////////////////
@@ -1316,22 +1428,29 @@ public:
         {
         }
 
+        /**
+         * Get transform between frames available in tf2 tree
+         * 
+         * @param pose pose holder
+         * @param t pose's time
+         * @param target_frame T_a
+         * @param source_frame T_b
+         * 
+         * @return T_a_b, pose of frame b from frame a
+         */
         bool getPose(
-            Pose2 &pose,
-            const rclcpp::Time &t,
-            const std::string &target_frame,
-            const std::string &source_frame)
+                Pose2 &pose,
+                const rclcpp::Time &t,
+                const std::string &target_frame,
+                const std::string &source_frame)
         {
                 geometry_msgs::msg::TransformStamped tmp_pose;
-                try
-                {
+                try {
                         tmp_pose = tf_->lookupTransform(
                             target_frame,
                             source_frame,
                             t);
-                }
-                catch (const tf2::TransformException &ex)
-                {
+                } catch (const tf2::TransformException &ex) {
                         return false;
                 }
 

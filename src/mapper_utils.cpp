@@ -47,17 +47,59 @@ bool Mapper::process(LocalizedRangeScan *scan, Eigen::Matrix3d *covariance)
 
                 if (initialized_ == false) {
                         // initialize mapper's utilities
-                        std::cout << "still fine" << std::endl;
                         initialize(laser->getRangeThreshold());
+                }
+
+                // get last scan
+                LocalizedRangeScan *last_scan = scan_manager_->getLastScan();
+
+                // update scans corrected pose based on last correction
+                if (last_scan != nullptr) {
+                        Pose2 T_map_odom = Pose2::getRelativePose(last_scan->getCorrectedPose(), last_scan->getOdometricPose());
+                        scan->setCorrectedPose(
+                                Pose2::transformPose(T_map_odom, 
+                                scan->getOdometricPose()));
+                }
+
+                Eigen::Matrix3d cov = Eigen::Matrix3d::Identity();
+
+                // correct scan (if not first scan)
+                if (last_scan != NULL) {
+                        Pose2 best_pose;
+                        scan_matcher_->matchScan(
+                                scan,
+                                scan_manager_->getRunningScans(),
+                                best_pose,
+                                cov);
+                        scan->setSensorPose(best_pose);
+                        if (covariance) {
+                                *covariance = cov;
+                        }
                 }
 
                 // add scan to buffer and assign id
                 scan_manager_->addScan(scan);
+
+                // add to graph
+                graph_->addVertex(scan);
+                graph_->addEdges(scan, cov);
+
+                scan_manager_->addRunningScan(scan);
+
+                // if (m_pDoLoopClosing->GetValue())
+                // {
+                //         std::vector<Name> deviceNames = m_pMapperSensorManager->GetSensorNames();
+                //         const_forEach(std::vector<Name>, &deviceNames)
+                //         {
+                //                 m_pGraph->TryCloseLoop(pScan, *iter);
+                //         }
+                // }
+
                 scan_manager_->setLastScan(scan);
 
                 return true;
         }
-        std::cout << "traced from 4::3" << std::endl;
+        
         return false;
 }
 

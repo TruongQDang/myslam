@@ -10,7 +10,6 @@ MySlam::MySlam(rclcpp::NodeOptions options)
         minimum_time_interval_(std::chrono::nanoseconds(0)),
         first_measurement_(true),
         laser_(nullptr)
-        
 /*****************************************************************************/
 {
         int stack_size = 40'000'000;
@@ -501,8 +500,6 @@ mapper_utils::LocalizedRangeScan *MySlam::addScan(
 {
         LocalizedRangeScan *range_scan = getLocalizedRangeScan(laser_.get(), scan, odom_pose);
 
-        std::cout << "number of range reading from scan: " << laser_->getNumberOfRangeReadings() << std::endl;
-
         // Add the localized range scan to the mapper
         boost::mutex::scoped_lock lock(mapper_mutex_);
         bool processed = false;
@@ -653,7 +650,7 @@ void MySlam::makeLaser(const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan)
 
         laser_->setRangeThreshold(max_laser_range);
         laser_->setFrameId(scan->header.frame_id);
-        laser_->setPose_RobotLaser(T_robot_laser);
+        laser_->setOffsetPose(T_robot_laser);
         laser_->setMinimumRange(scan->range_min);
         laser_->setMaximumRange(scan->range_max);
         laser_->setMinimumAngle(scan->angle_min);

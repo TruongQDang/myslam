@@ -63,6 +63,9 @@ private:
 
 /////////////////////////////////////////////////////////
 
+/**
+ * @brief 
+ */
 class Pose2
 {
 public:
@@ -119,9 +122,27 @@ public:
                 return pose_.translation() == other.pose_.translation() && this->getHeading() == other.getHeading();
         }
 
-        static Pose2 applyTransform(const Pose2 &left_pose, const Pose2 &right_pose)
+        inline Pose2 inverse() const
+        {
+                return Pose2(pose_.inverse());
+        }
+
+        /**
+         * @return left_pose * right_pose
+         */
+        static Pose2 transformPose(const Pose2 &left_pose, const Pose2 &right_pose)
         {
                 return Pose2(left_pose.pose_ * right_pose.pose_);
+        }
+
+        /**
+         * @param target_pose T_a_b 
+         * @param source_pose T_c_b
+         * @return T_a_c
+         */
+        static Pose2 getRelativePose(const Pose2& target_pose, const Pose2& source_pose)
+        {
+                return Pose2(target_pose.pose_ * source_pose.pose_.inverse());
         }
 
 private:
@@ -216,7 +237,11 @@ enum class GridStates : uint8_t
 
 typedef rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn CallbackReturn;
 
+
+// class mapper_utils::LocalizedRangeScan;
+
 typedef std::vector<double> RangeReadingsVector;
+// typedef std::vector<mapper_utils::LocalizedRangeScan *> LocalizedRangeScanVector;
 
 } // namespace myslam_types
 

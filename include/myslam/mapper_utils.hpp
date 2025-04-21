@@ -7,6 +7,9 @@
 #include <cstring>
 #include <iostream>
 #include <cmath>
+#include <tbb/parallel_for_each.h>
+#include "tbb/parallel_for.h"
+#include "tbb/blocked_range.h"
 
 #include "nav_msgs/msg/occupancy_grid.hpp"
 #include "tf2/utils.hpp"
@@ -38,6 +41,11 @@ class CoordinateConverter;
 class LaserRangeFinder;
 
 using namespace ::myslam_types;
+
+typedef std::vector<double> RangeReadingsVector;
+typedef std::vector<LocalizedRangeScan *> LocalizedRangeScanVector;
+typedef std::map<int, LocalizedRangeScan *> LocalizedRangeScanMap;
+typedef std::vector<Eigen::Vector2d> PointVectorDouble;
 
 ////////////////////////////////////////////////////////////
 
@@ -170,8 +178,6 @@ public:
 }; // LaserRangeFinder
 
 ////////////////////////////////////////////////////////////
-
-typedef std::vector<double> RangeReadingsVector;
 
 class LocalizedRangeScan
 {
@@ -325,6 +331,11 @@ public:
                 return bounding_box_;
         }
 
+        inline uint32_t getNumberOfRangeReadings() const
+        {
+                return number_of_range_readings_;
+        }
+
 private:
         /**
          * Compute point readings based on range readings
@@ -414,6 +425,11 @@ private:
 
 class CoordinateConverter
 {
+private:
+        double scale_;
+        Size2<int32_t> size_;
+        Eigen::Vector2d offset_;
+
 public:
         CoordinateConverter()
                 : scale_(20.0)
@@ -436,6 +452,11 @@ public:
         inline void setScale(double scale)
         {
                 scale_ = scale;
+        }
+
+        inline double getResolution() const
+        {
+                return 1.0 / scale_;
         }
 
         /**
@@ -487,11 +508,6 @@ public:
                 return Eigen::Matrix<int32_t, 2, 1>(static_cast<int32_t>(std::round(grid_x)),
                                                     static_cast<int32_t>(std::round(grid_y)));
         }
-
-private:
-        double scale_;
-        Size2<int32_t> size_;
-        Eigen::Vector2d offset_;
 };
 
 /////////////////////////////////////////////////////////
@@ -499,6 +515,26 @@ private:
 template <typename T>
 class Grid
 {
+protected:
+        /**
+         * Constructs grid of given size
+         * @param width
+         * @param height
+         */
+        Grid(int32_t width, int32_t height)
+            : data_(nullptr),
+              coordinate_converter_(nullptr)
+        {
+                resize(width, height);
+        }
+
+private:
+        int32_t width_;                             // width of grid
+        int32_t height_;                            // height of grid
+        int32_t width_step_;                        // 8 bit aligned width of grid
+        T *data_;                                   // grid data
+        CoordinateConverter *coordinate_converter_; // utility to convert between world coordinates and grid coordinates
+
 public:
         Grid()
         {
@@ -520,6 +556,17 @@ public:
         inline T *getDataPointer()
         {
         return data_;
+        }
+
+        /**
+         * Gets pointer to data at given grid coordinate
+         * @param rGrid grid coordinate
+         * @return grid point
+         */
+        T *getDataPointer(const Eigen::Matrix<int32_t, 2, 1> &grid)
+        {
+                int32_t index = getGridIndex(grid, true);
+                return data_ + index;
         }
 
         /**
@@ -547,6 +594,11 @@ public:
         inline int32_t getHeight() const
         {
                 return height_;
+        }
+
+        inline double getResolution() const
+        {
+                return coordinate_converter_->getResolution();
         }
 
         /**
@@ -655,9 +707,10 @@ public:
          * @param boundary_check default value is true
          * @return grid index
          */
-        int32_t getGridIndex(const Eigen::Matrix<int32_t, 2, 1> &grid, bool boundary_check = true) const
+        virtual int32_t getGridIndex(const Eigen::Matrix<int32_t, 2, 1> &grid, bool boundary_check = true) const
         {
-                if (boundary_check == true) {
+                if (boundary_check == true)
+                {
                         if (isValidGridIndex(grid) == false)
                         {
                                 std::stringstream error;
@@ -665,7 +718,7 @@ public:
                         }
                 }
 
-                int32_t index = grid(0) + (grid(1) * width_step_);
+                int32_t index = grid.x() + (grid.y() * width_step_);
 
                 if (boundary_check == true) {
                         assert(math::IsUpTo(index, getDataSize()));
@@ -736,27 +789,181 @@ public:
 
                 clear();
         }
+}; // Grid
 
-protected:
+//////////////////////////////////////////////////////////////
+
+/**
+ * Create lookup tables for point readings at varying angles in grid.
+ * For each angle, grid indexes are calculated for each range reading.
+ * This is to speed up finding best angle/position for a localized range scan
+ *
+ * Used heavily in mapper and localizer.
+ *
+ * In the localizer, this is a huge speed up for calculating possible position.  For each particle,
+ * a probability is calculated.  The range scan is the same, but all grid indexes at all possible angles are
+ * calculated.  So when calculating the particle probability at a specific angle, the index table is used
+ * to look up probability in probability grid!
+ *
+ */
+template<typename T>
+class GridIndexLookup
+{
+private:
+        Grid<T> *grid_;
+
+        uint32_t capacity_;
+        uint32_t size_;
+
+        std::vector<std::unique_ptr<LookupArray>> lookup_array_;
+
+        // for sanity check
+        std::vector<double> angles_;
+
+public:
+        GridIndexLookup()
+        { 
+        }
+
         /**
-         * Constructs grid of given size
-         * @param width
-         * @param height
+         * Compute lookup table of the points of the given scan for the given angular space
+         * @param pScan the scan
+         * @param angleCenter
+         * @param angleOffset computes lookup arrays for the angles within this offset around angleStart
+         * @param angleResolution how fine a granularity to compute lookup arrays in the angular space
          */
-        Grid(int32_t width, int32_t height)
-            : data_(nullptr),
-              coordinate_converter_(nullptr)
+        void computeOffsets(
+                LocalizedRangeScan *scan,
+                double angle_center,
+                double angle_offset,
+                double angle_resolution)
         {
-                resize(width, height);
+                assert(angle_offset != 0.0);
+                assert(angle_resolution != 0.0);
+
+                uint32_t n_angles =
+                        static_cast<uint32_t>(std::round(angle_offset * 2.0 / angle_resolution) + 1);
+                setSize(n_angles);
+
+                //////////////////////////////////////////////////////
+                // convert points into local coordinates of scan pose
+
+                const PointVectorDouble &point_readings = scan->getPointReadings();
+
+                Pose2Vector local_points;
+                for (const auto& point : point_readings) {
+                        // get points in local coordinates
+                        Pose2 vec = Pose2::transformPose(scan->getSensorPose().inverse(), Pose2(point, 0.0));
+                        local_points.push_back(vec);
+                }
+
+                //////////////////////////////////////////////////////
+                // create lookup array for different angles
+                double angle = 0.0;
+                double start_angle = angle_center - angle_offset;
+                for (uint32_t angle_index = 0; angle_index < n_angles; angle_index++)
+                {
+                        angle = start_angle + angle_index * angle_resolution;
+                        computeOffsets(angle_index, angle, local_points, scan);
+                }
+        }
+
+        /**
+         * Gets the lookup array for a particular angle index
+         * @param index
+         * @return lookup array
+         */
+        const LookupArray *getLookupArray(uint32_t index) const
+        {
+                assert(math::IsUpTo(index, size_));
+
+                return lookup_array_[index].get();
         }
 
 private:
-        int32_t width_;     // width of grid
-        int32_t height_;    // height of grid
-        int32_t width_step_; // 8 bit aligned width of grid
-        T *data_;            // grid data
-        CoordinateConverter *coordinate_converter_; // utility to convert between world coordinates and grid coordinates
-}; // Grid
+        /**
+         * Compute lookup value of points for given angle
+         * @param angleIndex
+         * @param angle
+         * @param rLocalPoints
+         */
+        void computeOffsets(
+                uint32_t angle_index, double angle, const Pose2Vector &local_points,
+                LocalizedRangeScan *scan)
+        {
+                lookup_array_[angle_index]->setSize(static_cast<uint32_t>(local_points.size()));
+                angles_.at(angle_index) = angle;
+
+                // set up point array by computing relative offsets to points readings
+                // when rotated by given angle
+
+                const Eigen::Vector2d &grid_offset = grid_->getCoordinateConverter()->getOffset();
+
+                double cosine = cos(angle);
+                double sine = sin(angle);
+
+                uint32_t reading_index = 0;
+
+                int32_t *angle_index_pointer = lookup_array_[angle_index]->getArrayPointer();
+
+                double max_range = scan->getLaserRangeFinder()->getMaximumRange();
+
+                for (const auto& point : local_points) {
+                        const Eigen::Vector2d &position = point.getPosition();
+                        if (std::isnan(scan->getRangeReadings()[reading_index]) ||
+                            std::isinf(scan->getRangeReadings()[reading_index]))
+                        {
+                                angle_index_pointer[reading_index] = math::INVALID_SCAN;
+                                reading_index++;
+                                continue;
+                        }
+
+                        // counterclockwise rotation and that rotation is about the origin (0, 0).
+                        Eigen::Vector2d offset;
+                        offset.x() = cosine * position.x() - sine * position.y();
+                        offset.y() = sine * position.x() + cosine * position.y();
+
+                        // have to compensate for the grid offset when getting the grid index
+                        Vector2i grid_point = grid_->convertWorldToGrid(offset + grid_offset);
+
+                        // use base GridIndex to ignore ROI
+                        int32_t lookup_index = grid_->Grid<T>::getGridIndex(grid_point, false);
+
+                        angle_index_pointer[reading_index] = lookup_index;
+
+                        reading_index++;
+                }
+
+                assert(reading_index == local_points.size());
+        }
+
+        /**
+         * Sets size of lookup table (resize if not big enough)
+         * @param size
+         */
+        void setSize(uint32_t size)
+        {
+                assert(size != 0);
+
+                if (size > capacity_)
+                {
+                        lookup_array_.clear();
+
+                        capacity_ = size;
+                        lookup_array_.reserve(capacity_);
+
+                        for (uint32_t i = 0; i < capacity_; i++) {
+                                lookup_array_.push_back(std::make_unique<LookupArray>());
+                        }
+                }
+
+                size_= size;
+
+                angles_.resize(size);
+        }
+
+}; // GridIndexLookup
+
 
 //////////////////////////////////////////////////////////////
 
@@ -1083,8 +1290,8 @@ protected:
 class ScanManager
 {
 private:
-        std::map<int, LocalizedRangeScan *> scans_;
-        std::vector<LocalizedRangeScan *> running_scans_;
+        LocalizedRangeScanMap scans_;
+        LocalizedRangeScanVector running_scans_;
         LocalizedRangeScan *last_scan_;
         uint32_t next_scan_id_;
 
@@ -1148,7 +1355,7 @@ public:
                 // }
         }
 
-        inline std::vector<LocalizedRangeScan *> getRunningScans()
+        inline LocalizedRangeScanVector getRunningScans()
         {
                 return running_scans_;
         }
@@ -1210,9 +1417,126 @@ private:
 
 ///////////////////////////////////////////////////////////////////////
 
+class CorrelationGrid : public Grid<uint8_t>
+{
+private:
+        /**
+         * The point readings are smeared by this value in X and Y to create a smoother response.
+         * Default value is 0.03 meters.
+         */
+        double smear_deviation_;
+
+        // Size of one side of the kernel
+        int32_t kernel_size_;
+
+        // Cached kernel for smearing
+        std::unique_ptr<uint8_t[]> kernel_;
+
+        // region of interest
+        Rectangle2<int32_t> roi_;
+
+public:
+        inline const Rectangle2<int32_t> &getROI() const
+        {
+                return roi_;
+        }
+
+        /**
+         * Smear cell if the cell at the given point is marked as "occupied"
+         * @param rGridPoint
+         */
+        inline void smearPoint(const Eigen::Matrix<int32_t, 2, 1> &grid_point)
+        {
+                assert(kernel_ != nullptr);
+
+                int grid_index = getGridIndex(grid_point);
+                if (getDataPointer()[grid_index] != static_cast<uint8_t>(GridStates::OCCUPIED)) {
+                        return;
+                }
+
+                int32_t half_kernel = kernel_size_ / 2;
+
+                // apply kernel
+                for (int32_t j = -half_kernel; j <= half_kernel; j++)
+                {
+                        uint8_t *grid_adr =
+                            getDataPointer(Eigen::Matrix<int32_t, 2, 1>(grid_point.x(), grid_point.y() + j));
+
+                        int32_t kernel_constant = (half_kernel) + kernel_size_ * (j + half_kernel);
+
+                        // if a point is on the edge of the grid, there is no problem
+                        // with running over the edge of allowable memory, because
+                        // the grid has margins to compensate for the kernel size
+                        for (int32_t i = -half_kernel; i <= half_kernel; i++)
+                        {
+                                int32_t kernel_array_index = i + kernel_constant;
+
+                                uint8_t kernel_value = kernel_[kernel_array_index];
+                                if (kernel_value > grid_adr[i]) {
+                                        // kernel value is greater, so set it to kernel value
+                                        grid_adr[i] = kernel_value;
+                                }
+                        }
+                }
+        }
+
+}; // CorrelationGrid
+
+
+///////////////////////////////////////////////////////////////////////
+
 class ScanMatcher
 {
 private:
+        Mapper *mapper_;
+        std::unique_ptr<CorrelationGrid> correlation_grid_;
+        std::unique_ptr<Grid<double>> search_space_probs_;
+        std::unique_ptr<GridIndexLookup<uint8_t>> grid_lookup_;
+        std::unique_ptr<std::pair<double, Pose2>[]> pose_response_;
+        std::vector<double> x_poses_;
+        std::vector<double> y_poses_;
+        Pose2 search_center_;
+        double search_angle_offset_;
+        uint32_t n_angles_;
+        double search_angle_resolution_;
+        bool do_penalize_;
+
+        /**
+         * Marks cells where scans' points hit as being occupied
+         * @param scan scans whose points will mark cells in grid as being occupied
+         * @param view_point do not add points that belong to scans "opposite" the view point
+         */
+        void addScans(const LocalizedRangeScanVector &scan, Eigen::Vector2d view_point);
+        void addScans(const LocalizedRangeScanMap &scans, Eigen::Vector2d view_point);
+
+        /**
+         * Marks cells where scans' points hit as being occupied.  Can smear points as they are added.
+         * @param pScan scan whose points will mark cells in grid as being occupied
+         * @param viewPoint do not add points that belong to scans "opposite" the view point
+         * @param doSmear whether the points will be smeared
+         */
+        void addScan(
+            LocalizedRangeScan *scan, const Eigen::Vector2d &viewpoint,
+            bool do_smear = true);
+
+        /**
+         * Compute which points in a scan are on the same side as the given viewpoint
+         * @param pScan
+         * @param rViewPoint
+         * @return points on the same side
+         */
+        PointVectorDouble findValidPoints(
+                LocalizedRangeScan *scan,
+                const Eigen::Vector2d &viewpoint) const;
+
+        /**
+         * Get response at given position for given rotation (only look up valid points)
+         * @param angleIndex
+         * @param gridPositionIndex
+         * @return response
+         */
+        double getResponse(uint32_t angle_index, int32_t grid_position_index) const;
+
 public:
         ScanMatcher()
         {
@@ -1240,6 +1564,70 @@ public:
                 Pose2 &mean, Eigen::Matrix3d &covariance,
                 bool do_penalize = true,
                 bool do_refine_match = true);
+
+        /**
+         * Finds the best pose for the scan centering the search in the correlation grid
+         * at the given pose and search in the space by the vector and angular offsets
+         * in increments of the given resolutions
+         * @param pScan scan to match against correlation grid
+         * @param rSearchCenter the center of the search space
+         * @param rSearchSpaceOffset searches poses in the area offset by this vector around search center
+         * @param rSearchSpaceResolution how fine a granularity to search in the search space
+         * @param searchAngleOffset searches poses in the angles offset by this angle around search center
+         * @param searchAngleResolution how fine a granularity to search in the angular search space
+         * @param doPenalize whether to penalize matches further from the search center
+         * @param rMean output parameter of mean (best pose) of match
+         * @param rCovariance output parameter of covariance of match
+         * @param doingFineMatch whether to do a finer search after coarse search
+         * @return strength of response
+         */
+        double correlateScan(
+                LocalizedRangeScan *scan,
+                const Pose2 &search_center,
+                const Vector2d &search_space_offset,
+                const Vector2d &search_space_resolution,
+                double search_angle_offset,
+                double search_angle_resolution,
+                bool do_penalize,
+                Pose2 &mean,
+                Matrix3d &covariance,
+                bool doing_fine_match);
+
+        /**
+         * Computes the positional covariance of the best pose
+         * @param rBestPose
+         * @param bestResponse
+         * @param rSearchCenter
+         * @param rSearchSpaceOffset
+         * @param rSearchSpaceResolution
+         * @param searchAngleResolution
+         * @param rCovariance
+         */
+        void computePositionalCovariance(
+            const Pose2 &best_pose,
+            double best_response,
+            const Pose2 &search_center,
+            const Vector2d &search_space_offset,
+            const Vector2d &search_space_resolution,
+            double search_angle_resolution,
+            Matrix3d &covariance);
+
+        /**
+         * Computes the angular covariance of the best pose
+         * @param rBestPose
+         * @param bestResponse
+         * @param rSearchCenter
+         * @param searchAngleOffset
+         * @param searchAngleResolution
+         * @param rCovariance
+         */
+        void computeAngularCovariance(
+            const Pose2 &best_pose,
+            double best_response,
+            const Pose2 &search_center,
+            double search_angle_offset,
+            double search_angle_resolution,
+            Matrix3d &covariance);
 }; // ScanMatcher
 
 ///////////////////////////////////////////////////////////////////////
@@ -1284,7 +1672,13 @@ class ScanSolver
 
 class Mapper 
 {
+        friend class ScanMatcher;
+        friend class MapperGraph;
+
 private:
+
+
+protected:
         // state
         bool initialized_;
 
@@ -1318,7 +1712,27 @@ private:
         // Minimum ratio of beams hitting cell to beams passing through cell to be marked as occupied
         double occupancy_threshold_;
 
-protected:
+        // The range of angles to search during a coarse search and a finer search
+        double fine_search_angle_offset_;
+        double coarse_search_angle_offset_;
+
+        // whether to increase the search space if no good matches are initially found
+        bool use_response_expansion;
+
+        // Resolution of angles to search during a coarse search
+        double coarse_angle_resolution_;
+
+        // Variance of penalty for deviating from odometry when scan-matching.
+        // The penalty is a multiplier (less than 1.0) is a function of the
+        // delta of the scan position being tested and the odometric pose
+        double distance_variance_penalty_;
+        double angle_variance_penalty_;
+
+        // Minimum value of the penalty multiplier so scores do not
+        // become too small
+        double minimum_angle_penalty_;
+        double minimum_distance_penalty_;
+
         std::unique_ptr<ScanManager> scan_manager_;
         std::unique_ptr<ScanMatcher> scan_matcher_;
         std::unique_ptr<MapperGraph> graph_;

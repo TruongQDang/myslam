@@ -228,6 +228,105 @@ private:
 
 ///////////////////////////////////////////////////////////////
 
+template<typename T>
+class Rectangle2
+{
+private:
+        Eigen::Matrix<T, 2, 1> position_;
+        Size2<T> size_; 
+public:
+        Rectangle2()
+        {
+        }
+
+        Rectangle2(const Rectangle2 &other)
+            : position_(other.position_),
+              size_(other.size_)
+        {
+        }
+
+public:
+        inline T getWidth() const
+        {
+                return size_.getWidth();
+        }
+
+        inline T getHeight() const
+        {
+                return size_.getHeight();
+        }
+
+}; // Rectangle2
+
+///////////////////////////////////////////////////////////////
+
+/**
+ * An array that can be resized as long as the size
+ * does not exceed the initial capacity
+ */
+class LookupArray
+{
+private:
+        std::unique_ptr<int32_t[]> array_;
+        uint32_t capacity_;
+        uint32_t size_;
+public:
+        LookupArray()
+        : array_(nullptr), capacity_(0), size_(0)
+        {
+        }
+
+        /**
+         * Sets size of array (resize if not big enough)
+         * @param size
+         */
+        void setSize(uint32_t size)
+        {
+                assert(size != 0);
+
+                if (size > capacity_)
+                {
+                        if (array_ != nullptr) {
+                                array_.reset();
+                        }
+                        capacity_ = size;
+                        array_ = std::make_unique<int32_t[]>(capacity_);
+                }
+
+                size_ = size;
+        }
+
+        /**
+         * Gets size of array
+         * @return array size
+         */
+        uint32_t getSize() const
+        {
+                return size_;
+        }
+
+        /**
+         * Gets array pointer
+         * @return array pointer
+         */
+        inline int32_t *getArrayPointer()
+        {
+                return array_.get();
+        }
+
+        /**
+         * Gets array pointer
+         * @return array pointer
+         */
+        inline int32_t *getArrayPointer() const
+        {
+                return array_.get();
+        }
+
+}; // LookupArray
+
+///////////////////////////////////////////////////////////////
+
 enum class GridStates : uint8_t
 {
         UNKNOWN = 0,
@@ -237,11 +336,10 @@ enum class GridStates : uint8_t
 
 typedef rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn CallbackReturn;
 
-
-// class mapper_utils::LocalizedRangeScan;
-
-typedef std::vector<double> RangeReadingsVector;
-// typedef std::vector<mapper_utils::LocalizedRangeScan *> LocalizedRangeScanVector;
+typedef std::vector<Pose2> Pose2Vector;
+typedef Eigen::Matrix<int32_t, 2, 1> Vector2i;
+typedef Eigen::Vector2d Vector2d;
+typedef Eigen::Matrix3d Matrix3d;
 
 } // namespace myslam_types
 

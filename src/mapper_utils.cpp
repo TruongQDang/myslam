@@ -19,6 +19,63 @@ void CellUpdater::operator()(uint32_t index)
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/**
+ * Create a scan matcher with the given parameters
+ */
+std::unique_ptr<ScanMatcher> ScanMatcher::create(
+        Mapper *mapper,
+        double search_size,
+        double resolution,
+        double smear_deviation,
+        double range_threshold)
+{
+        // invalid parameters
+        if (resolution <= 0)
+        {
+                return nullptr;
+        }
+        if (search_size <= 0)
+        {
+                return nullptr;
+        }
+        if (smear_deviation < 0)
+        {
+                return nullptr;
+        }
+        if (range_threshold <= 0)
+        {
+                return nullptr;
+        }
+
+        assert(math::DoubleEqual(std::round(search_size / resolution), (search_size / resolution)));
+
+        // calculate search space in grid coordinates
+        uint32_t search_space_side_size = static_cast<uint32_t>(std::round(search_size / resolution) + 1);
+
+        // compute requisite size of correlation grid (pad grid so that scan
+        // points can't fall off the grid
+        // if a scan is on the border of the search space)
+        uint32_t point_reading_margin = static_cast<uint32_t>(ceil(range_threshold / resolution));
+
+        int32_t grid_size = search_space_side_size + 2 * point_reading_margin;
+        
+        assert(grid_size % 2 == 1);
+
+        std::unique_ptr<ScanMatcher> scan_matcher = std::make_unique<ScanMatcher>(mapper);
+        scan_matcher->correlation_grid_ = CorrelationGrid::createGrid(
+                grid_size, 
+                grid_size, 
+                resolution,
+                smear_deviation);
+        scan_matcher->search_space_probs_ = Grid<double>::createGrid(
+                search_space_side_size,
+                search_space_side_size,
+                resolution);
+        scan_matcher->grid_lookup_ = std::make_unique<GridIndexLookup<uint8_t>>(scan_matcher->correlation_grid_.get());
+
+        return scan_matcher;
+}
+
 template<class T>
 double ScanMatcher::matchScan(
         LocalizedRangeScan *scan,
@@ -51,7 +108,7 @@ double ScanMatcher::matchScan(
         Rectangle2<int32_t> roi = correlation_grid_->getROI();
 
         // 3. compute offset (in meters - lower left corner)
-        Eigen::Vector2d offset;
+        Vector2d offset;
         offset.x() = scan_pose.getX() - 0.5 * (roi.getWidth() - 1) * correlation_grid_->getResolution();
         offset.y() = scan_pose.getY() - 0.5 * (roi.getHeight() - 1) * correlation_grid_->getResolution();
 
@@ -64,15 +121,15 @@ double ScanMatcher::matchScan(
         addScans(base_scans, scan_pose.getPosition());
 
         // compute how far to search in each direction
-        Eigen::Vector2d search_dimensions(
+        Vector2d search_dimensions(
                 search_space_probs_->getWidth(), 
                 search_space_probs_->getHeight());
-        Eigen::Vector2d coarse_search_offset(
+        Vector2d coarse_search_offset(
                 0.5 * (search_dimensions.x() - 1) * correlation_grid_->getResolution(),
                 0.5 * (search_dimensions.y() - 1) * correlation_grid_->getResolution());
 
         // a coarse search only checks half the cells in each dimension
-        Eigen::Vector2d coarse_search_resolution(
+        Vector2d coarse_search_resolution(
                 2 * correlation_grid_->getResolution(),
                 2 * correlation_grid_->getResolution());
 
@@ -116,7 +173,7 @@ double ScanMatcher::matchScan(
                                 }
                         }
 
-                        #ifdef KARTO_DEBUG
+                        #ifdef MYSLAM_DEBUG
                         if (math::DoubleEqual(best_response, 0.0)) {
                                 std::cout << "Mapper Warning: Unable to calculate response!" << std::endl;
                         }
@@ -125,8 +182,8 @@ double ScanMatcher::matchScan(
         }
 
         if (do_refine_match) {
-                Eigen::Vector2d fine_search_offset(coarse_search_resolution * 0.5);
-                Eigen::Vector2d fine_search_resolution(
+                Vector2d fine_search_offset(coarse_search_resolution * 0.5);
+                Vector2d fine_search_resolution(
                         correlation_grid_->getResolution(),
                         correlation_grid_->getResolution());
                 best_response = correlateScan(
@@ -142,7 +199,7 @@ double ScanMatcher::matchScan(
                         true);
         }
 
-        #ifdef KARTO_DEBUG
+        #ifdef MYSLAM_DEBUG
         std::cout << "  BEST POSE = " << mean << " BEST RESPONSE = " << best_response << ",  VARIANCE = " << covariance(0, 0) << ", " << covariance(1, 1) << std::endl;
         #endif
 
@@ -158,7 +215,7 @@ double ScanMatcher::matchScan(
  */
 void ScanMatcher::addScans(
         const LocalizedRangeScanVector &scans, 
-        Eigen::Vector2d viewpoint)
+        Vector2d viewpoint)
 {
         correlation_grid_->clear();
 
@@ -179,14 +236,15 @@ void ScanMatcher::addScans(
  * @param doSmear whether the points will be smeared
  */
 void ScanMatcher::addScan(
-        LocalizedRangeScan *scan, const Eigen::Vector2d &viewpoint,
+        LocalizedRangeScan *scan, 
+        const Vector2d &viewpoint,
         bool do_smear)
 {
         PointVectorDouble valid_points = findValidPoints(scan, viewpoint);
 
         // put in all valid points
         for (const auto& point : valid_points) {
-                Eigen::Matrix<int32_t, 2, 1> grid_point = correlation_grid_->convertWorldToGrid(point);
+                Vector2i grid_point = correlation_grid_->convertWorldToGrid(point);
                 if (!math::IsUpTo(grid_point.x(), correlation_grid_->getROI().getWidth()) ||
                     !math::IsUpTo(grid_point.y(), correlation_grid_->getROI().getHeight())) {
                         // point not in grid
@@ -219,7 +277,7 @@ void ScanMatcher::addScan(
  */
 PointVectorDouble ScanMatcher::findValidPoints(
         LocalizedRangeScan *scan,
-        const Eigen::Vector2d &viewpoint) const
+        const Vector2d &viewpoint) const
 {
         const PointVectorDouble &point_readings = scan->getPointReadings();
 
@@ -231,17 +289,17 @@ PointVectorDouble ScanMatcher::findValidPoints(
         PointVectorDouble::const_iterator trailing_point_iter = point_readings.begin();
         PointVectorDouble valid_points;
 
-        Eigen::Vector2d first_point;
+        Vector2d first_point;
         bool first_time = true;
         for (PointVectorDouble::const_iterator iter = point_readings.begin(); iter != point_readings.end(); ++iter) {
-                Eigen::Vector2d current_point = *iter;
+                Vector2d current_point = *iter;
 
                 if (first_time && !std::isnan(current_point.x()) && !std::isnan(current_point.y())) {
                         first_point = current_point;
                         first_time = false;
                 }
 
-                Eigen::Vector2d delta = first_point - current_point;
+                Vector2d delta = first_point - current_point;
                 if (delta.squaredNorm() > min_square_distance) {
                         // This compute the Determinant (viewPoint FirstPoint, viewPoint currentPoint)
                         // Which computes the direction of rotation, if the rotation is counterclock
@@ -307,8 +365,7 @@ double ScanMatcher::correlateScan(
                 search_angle_resolution);
 
         // only initialize probability grid if computing positional covariance (during coarse match)
-        if (!doing_fine_match)
-        {
+        if (!doing_fine_match) {
                 search_space_probs_->clear();
 
                 // position search grid - finds lower left corner of search grid
@@ -317,13 +374,11 @@ double ScanMatcher::correlateScan(
         }
 
         // calculate position arrays
-
         x_poses_.clear();
         uint32_t n_x = static_cast<uint32_t>(
                 std::round(search_space_offset.x() * 2.0 / search_space_resolution.x()) + 1);
         double start_x = -search_space_offset.x();
-        for (uint32_t x_index = 0; x_index < n_x; x_index++)
-        {
+        for (uint32_t x_index = 0; x_index < n_x; x_index++) {
                 x_poses_.push_back(start_x + x_index * search_space_resolution.x());
         }
         assert(math::DoubleEqual(x_poses_.back(), -start_x));
@@ -332,8 +387,7 @@ double ScanMatcher::correlateScan(
         uint32_t n_y = static_cast<uint32_t>(
             std::round(search_space_offset.y() * 2.0 / search_space_resolution.y()) + 1);
         double start_y = -search_space_offset.y();
-        for (uint32_t y_index = 0; y_index < n_y; y_index++)
-        {
+        for (uint32_t y_index = 0; y_index < n_y; y_index++) {
                 y_poses_.push_back(start_y + y_index * search_space_resolution.y());
         }
         assert(math::DoubleEqual(y_poses_.back(), -start_y));
@@ -393,8 +447,7 @@ double ScanMatcher::correlateScan(
         double theta_y = 0.0;
         int32_t average_pose_count = 0;
         for (uint32_t i = 0; i < pose_response_size; i++) {
-                if (math::DoubleEqual(pose_response_[i].first, best_response))
-                {
+                if (math::DoubleEqual(pose_response_[i].first, best_response)) {
                         average_position += pose_response_[i].second.getPosition();
 
                         double heading = pose_response_[i].second.getHeading();
@@ -449,6 +502,99 @@ double ScanMatcher::correlateScan(
         return best_response;
 }
 
+void ScanMatcher::operator()(const double &y) const
+{
+        uint32_t poseResponseCounter;
+        uint32_t x_pose;
+        uint32_t y_pose = std::find(y_poses_.begin(), y_poses_.end(), y) - y_poses_.begin();
+
+        const uint32_t size_x = x_poses_.size();
+
+        double newPositionY = search_center_.getY() + y;
+        double squareY = math::Square(y);
+
+        for (std::vector<double>::const_iterator xIter = x_poses_.begin(); xIter != x_poses_.end();
+             ++xIter) {
+                x_pose = std::distance(x_poses_.begin(), xIter);
+                double x = *xIter;
+                double newPositionX = search_center_.getX() + x;
+                double squareX = math::Square(x);
+
+                Vector2i gridPoint =
+                        correlation_grid_->convertWorldToGrid(Vector2d(newPositionX, newPositionY));
+                int32_t gridIndex = correlation_grid_->getGridIndex(gridPoint);
+                assert(gridIndex >= 0);
+
+                double angle = 0.0;
+                double startAngle = search_center_.getHeading() - search_angle_offset_;
+                for (uint32_t angleIndex = 0; angleIndex < n_angles_; angleIndex++)
+                {
+                        angle = startAngle + angleIndex * search_angle_resolution_;
+
+                        double response = getResponse(angleIndex, gridIndex);
+                        if (do_penalize_ && (math::DoubleEqual(response, 0.0) == false)) {
+                                // simple model (approximate Gaussian) to take odometry into account
+                                double squaredDistance = squareX + squareY;
+                                double distancePenalty = 1.0 - (DISTANCE_PENALTY_GAIN *
+                                                                squaredDistance / mapper_->distance_variance_penalty_);
+                                distancePenalty = std::max(distancePenalty,
+                                                           mapper_->minimum_distance_penalty_);
+
+                                double squaredAngleDistance = math::Square(angle - search_center_.getHeading());
+                                double anglePenalty = 1.0 - (ANGLE_PENALTY_GAIN *
+                                                             squaredAngleDistance / mapper_->angle_variance_penalty_);
+                                anglePenalty = std::max(anglePenalty, mapper_->minimum_angle_penalty_);
+
+                                response *= (distancePenalty * anglePenalty);
+                        }
+
+                        // store response and pose
+                        poseResponseCounter = (y_pose * size_x + x_pose) * (n_angles_) + angleIndex;
+                        pose_response_[poseResponseCounter] =
+                            std::pair<double, Pose2>(response, Pose2(newPositionX, newPositionY,
+                                                                     math::NormalizeAngle(angle)));
+                }
+        }
+}
+
+double ScanMatcher::getResponse(uint32_t angle_index, int32_t grid_position_index) const
+{
+        double response = 0.0;
+
+        // add up value for each point
+        uint8_t *pByte = correlation_grid_->getDataPointer() + grid_position_index;
+
+        const LookupArray *pOffsets = grid_lookup_->getLookupArray(angle_index);
+        assert(pOffsets != NULL);
+
+        // get number of points in offset list
+        uint32_t nPoints = pOffsets->getSize();
+        if (nPoints == 0) {
+                return response;
+        }
+
+        // calculate response
+        int32_t *pAngleIndexPointer = pOffsets->getArrayPointer();
+        for (uint32_t i = 0; i < nPoints; i++)
+        {
+                // ignore points that fall off the grid
+                int32_t pointGridIndex = grid_position_index + pAngleIndexPointer[i];
+                if (!math::IsUpTo(pointGridIndex, correlation_grid_->getDataSize()) ||
+                        pAngleIndexPointer[i] == math::INVALID_SCAN) {
+                        continue;
+                }
+
+                // uses index offsets to efficiently find location of point in the grid
+                response += pByte[pAngleIndexPointer[i]];
+        }
+
+        // normalize response
+        response /= (nPoints * static_cast<uint8_t>(GridStates::OCCUPIED));
+        assert(fabs(response) <= 1.0);
+
+        return response;
+}
+
 /**
  * Computes the positional covariance of the best pose
  * @param rBestPose
@@ -460,13 +606,13 @@ double ScanMatcher::correlateScan(
  * @param rCovariance
  */
 void ScanMatcher::computePositionalCovariance(
-const Pose2 &best_pose,
-double best_response,
-const Pose2 &search_center,
-const Vector2d &search_space_offset,
-const Vector2d &search_space_resolution,
-double search_angle_resolution,
-Matrix3d &covariance)
+        const Pose2 &best_pose,
+        double best_response,
+        const Pose2 &search_center,
+        const Vector2d &search_space_offset,
+        const Vector2d &search_space_resolution,
+        double search_angle_resolution,
+        Matrix3d &covariance)
 {
         // reset covariance to identity matrix
         covariance.Identity();
@@ -502,22 +648,19 @@ Matrix3d &covariance)
         double start_y = -offset_y;
         assert(math::DoubleEqual(start_y + (n_y - 1) * search_space_resolution.y(), -start_y));
 
-        for (uint32_t y_index = 0; y_index < n_y; y_index++)
-        {
+        for (uint32_t y_index = 0; y_index < n_y; y_index++) {
                 double y = start_y + y_index * search_space_resolution.y();
 
-                for (uint32_t x_index = 0; x_index < n_x; x_index++)
-                {
+                for (uint32_t x_index = 0; x_index < n_x; x_index++) {
                         double x = start_x + x_index * search_space_resolution.x();
 
                         Vector2i grid_point =
-                            search_space_probs_->convertWorldToGrid(Vector2d(search_center.getX() + x,
-                                                                             search_center.getY() + y));
+                                search_space_probs_->convertWorldToGrid(Vector2d(search_center.getX() + x,
+                                                                                search_center.getY() + y));
                         double response = *(search_space_probs_->getDataPointer(grid_point));
 
                         // response is not a low response
-                        if (response >= (best_response - 0.1))
-                        {
+                        if (response >= (best_response - 0.1)) {
                                 norm += response;
                                 accumulated_variance_xx += (math::Square(x - dx) * response);
                                 accumulated_variance_xy += ((x - dx) * (y - dy) * response);
@@ -550,13 +693,11 @@ Matrix3d &covariance)
 
         // if values are 0, set to MAX_VARIANCE
         // values might be 0 if points are too sparse and thus don't hit other points
-        if (math::DoubleEqual(covariance(0, 0), 0.0))
-        {
+        if (math::DoubleEqual(covariance(0, 0), 0.0)) {
                 covariance(0, 0) = MAX_VARIANCE;
         }
 
-        if (math::DoubleEqual(covariance(1, 1), 0.0))
-        {
+        if (math::DoubleEqual(covariance(1, 1), 0.0)) {
                 covariance(1, 1) = MAX_VARIANCE;
         }
 }
@@ -582,7 +723,7 @@ void ScanMatcher::computeAngularCovariance(
 
         // normalize angle difference
         double best_angle = math::NormalizeAngleDifference(
-            best_pose.getHeading(), search_center.getHeading());
+                best_pose.getHeading(), search_center.getHeading());
 
         Vector2i grid_point = correlation_grid_->convertWorldToGrid(best_pose.getPosition());
         int32_t grid_index = correlation_grid_->getGridIndex(grid_point);
@@ -609,133 +750,303 @@ void ScanMatcher::computeAngularCovariance(
         }
         assert(math::DoubleEqual(angle, search_center.getHeading() + search_angle_offset));
 
-        if (norm > math::TOLERANCE)
-        {
+        if (norm > math::TOLERANCE) {
                 if (accumulated_variance_thth < math::TOLERANCE)
                 {
                         accumulated_variance_thth = math::Square(search_angle_resolution);
                 }
 
                 accumulated_variance_thth /= norm;
-        }
-        else
-        {
+        } else {
                 accumulated_variance_thth = 1000 * math::Square(search_angle_resolution);
         }
 
         covariance(2, 2) = accumulated_variance_thth;
 }
 
-void ScanMatcher::operator()(const double &y) const
-{
-        uint32_t poseResponseCounter;
-        uint32_t x_pose;
-        uint32_t y_pose = std::find(y_poses_.begin(), y_poses_.end(), y) - y_poses_.begin();
 
-        const uint32_t size_x = x_poses_.size();
-
-        double newPositionY = search_center_.getY() + y;
-        double squareY = math::Square(y);
-
-        for (std::vector<double>::const_iterator xIter = x_poses_.begin(); xIter != x_poses_.end();
-             ++xIter)
-        {
-                x_pose = std::distance(x_poses_.begin(), xIter);
-                double x = *xIter;
-                double newPositionX = search_center_.getX() + x;
-                double squareX = math::Square(x);
-
-                Vector2i gridPoint =
-                    correlation_grid_->convertWorldToGrid(Vector2d(newPositionX, newPositionY));
-                int32_t gridIndex = correlation_grid_->getGridIndex(gridPoint);
-                assert(gridIndex >= 0);
-
-                double angle = 0.0;
-                double startAngle = search_center_.getHeading() - search_angle_offset_;
-                for (uint32_t angleIndex = 0; angleIndex < n_angles_; angleIndex++)
-                {
-                        angle = startAngle + angleIndex * search_angle_resolution_;
-
-                        double response = getResponse(angleIndex, gridIndex);
-                        if (do_penalize_ && (math::DoubleEqual(response, 0.0) == false))
-                        {
-                                // simple model (approximate Gaussian) to take odometry into account
-                                double squaredDistance = squareX + squareY;
-                                double distancePenalty = 1.0 - (DISTANCE_PENALTY_GAIN *
-                                                                   squaredDistance / mapper_->distance_variance_penalty_);
-                                distancePenalty = std::max(distancePenalty,
-                                                                mapper_->minimum_distance_penalty_);
-
-                                double squaredAngleDistance = math::Square(angle - search_center_.getHeading());
-                                double anglePenalty = 1.0 - (ANGLE_PENALTY_GAIN *
-                                                                squaredAngleDistance / mapper_->angle_variance_penalty_);
-                                anglePenalty = std::max(anglePenalty, mapper_->minimum_angle_penalty_);
-
-                                response *= (distancePenalty * anglePenalty);
-                        }
-
-                        // store response and pose
-                        poseResponseCounter = (y_pose * size_x + x_pose) * (n_angles_) + angleIndex;
-                        pose_response_[poseResponseCounter] =
-                            std::pair<double, Pose2>(response, Pose2(newPositionX, newPositionY,
-                                                                        math::NormalizeAngle(angle)));
-                }
-        }
-}
-
-double ScanMatcher::getResponse(uint32_t angle_index, int32_t grid_position_index) const
-{
-        double response = 0.0;
-
-        // add up value for each point
-        uint8_t *pByte = correlation_grid_->getDataPointer() + grid_position_index;
-
-        const LookupArray *pOffsets = grid_lookup_->getLookupArray(angle_index);
-        assert(pOffsets != NULL);
-
-        // get number of points in offset list
-        uint32_t nPoints = pOffsets->getSize();
-        if (nPoints == 0)
-        {
-                return response;
-        }
-
-        // calculate response
-        int32_t *pAngleIndexPointer = pOffsets->getArrayPointer();
-        for (uint32_t i = 0; i < nPoints; i++)
-        {
-                // ignore points that fall off the grid
-                int32_t pointGridIndex = grid_position_index + pAngleIndexPointer[i];
-                if (!math::IsUpTo(pointGridIndex,
-                                  correlation_grid_->getDataSize()) ||
-                    pAngleIndexPointer[i] == math::INVALID_SCAN)
-                {
-                        continue;
-                }
-
-                // uses index offsets to efficiently find location of point in the grid
-                response += pByte[pAngleIndexPointer[i]];
-        }
-
-        // normalize response
-        response /= (nPoints * static_cast<uint8_t>(GridStates::OCCUPIED));
-        assert(fabs(response) <= 1.0);
-
-        return response;
-}
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 Vertex<LocalizedRangeScan> *MapperGraph::addVertex(LocalizedRangeScan * scan)
 {
+        assert(scan);
+
+        if (scan != nullptr) {
+                std::unique_ptr<Vertex<LocalizedRangeScan>> vertex = std::make_unique<Vertex<LocalizedRangeScan>>(scan);
+                Vertex<LocalizedRangeScan> *vertex_ptr = vertex.get();
+                Graph<LocalizedRangeScan>::addVertex(std::move(vertex));
+                if (mapper_->scan_optimizer_ != nullptr) {
+                        mapper_->scan_optimizer_->addNode(vertex_ptr);
+                }
+                return vertex_ptr;
+        }
+
+        return nullptr;
 }
 
-void MapperGraph::addEdges(LocalizedRangeScan * scan, const Eigen::Matrix3d &covariance)
+Edge<LocalizedRangeScan> *MapperGraph::addEdge(
+        LocalizedRangeScan *source_scan,
+        LocalizedRangeScan *target_scan,
+        bool &is_new_edge)
 {
+        std::map<int, 
+                std::unique_ptr<Vertex<LocalizedRangeScan>>>::iterator v1 = vertices_.find(source_scan->getScanId());
+        std::map<int, 
+                std::unique_ptr<Vertex<LocalizedRangeScan>>>::iterator v2 = vertices_.find(target_scan->getScanId());
+
+        if (v1 == vertices_.end() || v2 == vertices_.end()) {
+                std::cout << "addEdge: At least one vertex is invalid." << std::endl;
+                return nullptr;
+        }
+
+        // see if edge already exists
+        for (const auto& edge : v1->second->getEdges()) {
+                if (edge->getTarget() == v2->second.get()) {
+                        is_new_edge= false;
+                        return edge;
+                }
+        }
+
+        std::unique_ptr<Edge<LocalizedRangeScan>> edge = std::make_unique<Edge<LocalizedRangeScan>>(v1->second.get(), v2->second.get());
+        Edge<LocalizedRangeScan> *edge_ptr = edge.get();
+        Graph<LocalizedRangeScan>::addEdge(std::move(edge));
+        is_new_edge = true;
+        return edge_ptr;
+}
+
+void MapperGraph::addEdges(LocalizedRangeScan * scan, const Matrix3d &covariance)
+{
+        ScanManager *scan_manager = mapper_->scan_manager_.get();
+
+        // link to previous scan
+        LocalizedRangeScan *prev_scan = scan_manager->getLastScan();
+        if (!prev_scan) {
+                return;
+        }
+        linkScans(prev_scan, scan, scan->getSensorPose(), covariance);
+
+        Pose2Vector means;
+        std::vector<Matrix3d> covariances;
+
+        // link to running scans
+        Pose2 scan_pose = scan->getSensorPose();
+        means.push_back(scan_pose);
+        covariances.push_back(covariance);
+        linkChainToScan(scan_manager->getRunningScans(), scan, scan_pose, covariance);
+
+        // link to other near chains (chains that include new scan are invalid)
+        linkNearChains(scan, means, covariances);
+
+        if (!means.empty()) {
+                scan->setSensorPose(computeWeightedMean(means, covariances));
+        }
 }
 
 bool MapperGraph::tryCloseLoop(LocalizedRangeScan * scan)
 {
+        bool loopClosed = false;
+
+        uint32_t scanIndex = 0;
+
+        LocalizedRangeScanVector candidateChain = FindPossibleLoopClosure(scan, scanIndex);
+
+        while (!candidateChain.empty())
+        {
+                Pose2 bestPose;
+                Matrix3d covariance;
+                double coarseResponse = loop_scan_matcher_->matchScan(scan, candidateChain,
+                                                                         bestPose, covariance, false, false);
+
+                std::stringstream stream;
+                stream << "COARSE RESPONSE: " << coarseResponse << " (> " << mapper_->loop_match_minimum_response_coarse_ << ")" << std::endl;
+                stream << "            var: " << covariance(0, 0) << ",  " << covariance(1, 1) << " (< " << mapper_->loop_match_maximum_variance_coarse_ << ")";
+
+                if ((coarseResponse > mapper_->loop_match_minimum_response_coarse_) &&
+                    (covariance(0, 0) < mapper_->loop_match_maximum_variance_coarse_) &&
+                    (covariance(1, 1) < mapper_->loop_match_maximum_variance_coarse_))
+                {
+                        LocalizedRangeScan tmpScan(scan->getLaserRangeFinder(), scan->getRangeReadingsVector());
+                        tmpScan.setScanId(scan->getScanId());
+                        tmpScan.setTime(scan->getTime());
+                        tmpScan.setCorrectedPose(scan->getCorrectedPose());
+                        tmpScan.setSensorPose(bestPose); // This also updates OdometricPose.
+                        double fineResponse = mapper_->scan_matcher_->matchScan(&tmpScan,
+                                                                                                candidateChain,
+                                                                                                bestPose, covariance, false);
+
+                        std::stringstream stream1;
+                        stream1 << "FINE RESPONSE: " << fineResponse << " (>" << mapper_->loop_match_minimum_response_fine_ << ")" << std::endl;
+
+                        if (fineResponse < mapper_->loop_match_minimum_response_fine_)
+                        {
+                                // mapper_->FireLoopClosureCheck("REJECTED!");
+                        }
+                        else
+                        {
+                                // mapper_->FireBeginLoopClosure("Closing loop...");
+
+                                scan->setSensorPose(bestPose);
+                                linkChainToScan(candidateChain, scan, bestPose, covariance);
+                                correctPoses();
+
+                                // mapper_->FireEndLoopClosure("Loop closed!");
+
+                                loopClosed = true;
+                        }
+                }
+
+                candidateChain = FindPossibleLoopClosure(scan, scanIndex);
+        }
+
+        return loopClosed;
+}
+
+void MapperGraph::correctPoses()
+{
+        // optimize scans!
+        ScanSolver *solver = mapper_->scan_optimizer_.get();
+        if (solver != nullptr) {
+                solver->compute();
+
+                for (const auto &pose_vec : solver->getCorrections()) {
+                        LocalizedRangeScan *scan = mapper_->scan_manager_->getScan(pose_vec.first);
+                        if (scan == nullptr) {
+                                continue;
+                        }
+                        scan->setCorrectedPoseAndUpdate(pose_vec.second);
+                }
+
+                solver->clear();
+        }
+}
+
+LocalizedRangeScanVector MapperGraph::FindPossibleLoopClosure(
+        LocalizedRangeScan *scan,
+        uint32_t &rStartNum)
+{
+        LocalizedRangeScanVector chain; // return value
+
+        Pose2 pose = scan->getReferencePose(mapper_->use_scan_barycenter_);
+
+        // possible loop closure chain should not include close scans that have a
+        // path of links to the scan of interest
+        const LocalizedRangeScanVector nearLinkedScans =
+                findNearLinkedScans(scan, mapper_->loop_search_maximum_distance_);
+
+        uint32_t nScans =
+            static_cast<uint32_t>(mapper_->scan_manager_->getAllScans().size());
+        for (; rStartNum < nScans; rStartNum++) {
+                LocalizedRangeScan *pCandidateScan = mapper_->scan_manager_->getScan(rStartNum);
+
+                if (pCandidateScan == nullptr) {
+                        continue;
+                }
+
+                Pose2 candidateScanPose = pCandidateScan->getReferencePose(
+                    mapper_->use_scan_barycenter_);
+
+                double squaredDistance = candidateScanPose.getSquaredDistance(pose);
+                if (squaredDistance <
+                    math::Square(mapper_->loop_search_maximum_distance_) + math::TOLERANCE) {
+                        // a linked scan cannot be in the chain
+                        if (find(nearLinkedScans.begin(), nearLinkedScans.end(),
+                                 pCandidateScan) != nearLinkedScans.end())
+                        {
+                                chain.clear();
+                        }
+                        else
+                        {
+                                chain.push_back(pCandidateScan);
+                        }
+                }
+                else
+                {
+                        // return chain if it is long "enough"
+                        if (chain.size() >= mapper_->loop_match_minimum_chain_size_)
+                        {
+                                return chain;
+                        }
+                        else
+                        {
+                                chain.clear();
+                        }
+                }
+        }
+
+        return chain;
+}
+
+void MapperGraph::linkScans(
+        LocalizedRangeScan *from_scan,
+        LocalizedRangeScan *to_scan,
+        const Pose2 &mean,
+        const Matrix3d &covariance)
+{
+        bool is_new_edge = true;
+        Edge<LocalizedRangeScan> *edge = addEdge(from_scan, to_scan, is_new_edge);
+
+        if (edge == nullptr) {
+                return;
+        }
+
+        // only attach link information if the edge is new
+        if (is_new_edge == true) {
+                edge->setLabel(new LinkInfo(from_scan->getCorrectedPose(), to_scan->getCorrectedAt(mean), covariance));
+                if (mapper_->scan_optimizer_ != nullptr) {
+                        mapper_->scan_optimizer_->addConstraint(edge);
+                }
+        }
+}
+
+LocalizedRangeScanVector MapperGraph::findNearLinkedScans(LocalizedRangeScan *scan, double max_distance)
+{
+        NearScanVisitor *visitor = new NearScanVisitor(
+                scan, 
+                max_distance,
+                mapper_->use_scan_barycenter_);
+        // LocalizedRangeScanVector nearLinkedScans = traversal_->traverseForScans(
+        //         getVertex(scan),
+        //         visitor);
+        delete visitor;
+
+        // return nearLinkedScans;
+}
+
+void MapperGraph::linkChainToScan(
+        const LocalizedRangeScanVector &chain,
+        LocalizedRangeScan *scan,
+        const Pose2 &mean,
+        const Matrix3d &covariance)
+{
+        Pose2 pose = scan->getReferencePose(mapper_->use_scan_barycenter_);
+
+        LocalizedRangeScan *closest_scan = getClosestScanToPose(chain, pose);
+        assert(closest_scan != nullptr);
+
+        Pose2 closest_scan_pose =
+                closest_scan->getReferencePose(mapper_->use_scan_barycenter_);
+
+        double squared_distance = pose.getSquaredDistance(closest_scan_pose);
+        if (squared_distance <
+                math::Square(mapper_->link_scan_maximum_distance_) + math::TOLERANCE)
+        {
+                linkScans(closest_scan, scan, mean, covariance);
+        }
+}
+
+void MapperGraph::linkNearChains(
+        LocalizedRangeScan *scan, Pose2Vector &means,
+        std::vector<Matrix3d> &covariance)
+{
+
+}
+
+LocalizedRangeScan *MapperGraph::getClosestScanToPose(
+        const LocalizedRangeScanVector &scans,
+        const Pose2 &pose) const
+{
+
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -765,12 +1076,10 @@ template void Mapper::configure(const rclcpp_lifecycle::LifecycleNode::SharedPtr
 
 bool Mapper::process(LocalizedRangeScan * scan, Eigen::Matrix3d * covariance)
 {
-        if (scan != nullptr)
-        {
+        if (scan != nullptr) {
                 LaserRangeFinder *laser = scan->getLaserRangeFinder();
 
-                if (initialized_ == false)
-                {
+                if (initialized_ == false) {
                         // initialize mapper's utilities
                         initialize(laser->getRangeThreshold());
                 }
@@ -779,19 +1088,20 @@ bool Mapper::process(LocalizedRangeScan * scan, Eigen::Matrix3d * covariance)
                 LocalizedRangeScan *last_scan = scan_manager_->getLastScan();
 
                 // update scans corrected pose based on last correction
-                if (last_scan != nullptr)
-                {
-                        Pose2 T_map_odom = Pose2::getRelativePose(last_scan->getCorrectedPose(), last_scan->getOdometricPose());
+                if (last_scan != nullptr) {
+                        Pose2 T_map_odom = Pose2::getRelativePose(
+                                last_scan->getCorrectedPose(), 
+                                last_scan->getOdometricPose());
                         scan->setCorrectedPose(
-                                Pose2::transformPose(T_map_odom,
-                                                        scan->getOdometricPose()));
+                                Pose2::transformPose(
+                                        T_map_odom,
+                                        scan->getOdometricPose()));
                 }
 
                 Eigen::Matrix3d cov = Eigen::Matrix3d::Identity();
 
                 // correct scan (if not first scan)
-                if (last_scan != NULL)
-                {
+                if (last_scan != nullptr) {
                         Pose2 best_pose;
                         scan_matcher_->matchScan(
                                 scan,
@@ -823,4 +1133,4 @@ bool Mapper::process(LocalizedRangeScan * scan, Eigen::Matrix3d * covariance)
         return false;
 }
 
-        } // namespace mapper_utils
+} // namespace mapper_utils

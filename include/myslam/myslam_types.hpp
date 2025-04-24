@@ -245,6 +245,19 @@ public:
         {
         }
 
+        /**
+         * Constructor initializing rectangle parameters
+         * @param x x-coordinate of left edge of rectangle
+         * @param y y-coordinate of bottom edge of rectangle
+         * @param width width of rectangle
+         * @param height height of rectangle
+         */
+        Rectangle2(T x, T y, T width, T height)
+            : position_(x, y),
+              size_(width, height)
+        {
+        }
+
 public:
         inline T getWidth() const
         {

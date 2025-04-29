@@ -2304,13 +2304,6 @@ public:
          */
         LocalizedRangeScanVector findNearLinkedScans(LocalizedRangeScan *scan, double max_distance);
 
-        /**
-         * Find "nearby" (no further than given distance away) scans through graph links
-         * @param pScan
-         * @param maxDistance
-         */
-        LocalizedRangeScanVector FindNearByScans(const Pose2 refPose, double maxDistance);
-
 private:
         /**
          * Adds an edge between the two scans and labels the edge with the given mean and covariance

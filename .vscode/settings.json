@@ -97,6 +97,13 @@
                 "ranges": "cpp",
                 "queue": "cpp",
                 "stack": "cpp",
-                "random": "cpp"
+                "random": "cpp",
+                "codecvt": "cpp",
+                "complex": "cpp",
+                "iomanip": "cpp",
+                "numbers": "cpp",
+                "shared_mutex": "cpp",
+                "stop_token": "cpp",
+                "typeindex": "cpp"
         }
 }

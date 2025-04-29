@@ -29,6 +29,10 @@ void CeresSolver::configure(rclcpp_lifecycle::LifecycleNode::SharedPtr node)
         }
         solver_type = node->get_parameter("ceres_linear_solver").as_string();
 
+        RCLCPP_INFO(
+            node->get_logger(),
+            "still fine3");
+
         if (!node->has_parameter("ceres_preconditioner"))
         {
                 node->declare_parameter(
@@ -61,6 +65,10 @@ void CeresSolver::configure(rclcpp_lifecycle::LifecycleNode::SharedPtr node)
         }
         loss_fn = node->get_parameter("ceres_loss_function").as_string();
 
+        RCLCPP_INFO(
+            node->get_logger(),
+            "still fine3.1");
+
         if (!node->has_parameter("mode"))
         {
                 node->declare_parameter(
@@ -69,11 +77,19 @@ void CeresSolver::configure(rclcpp_lifecycle::LifecycleNode::SharedPtr node)
         }
         mode = node->get_parameter("mode").as_string();
 
-        debug_logging_ = node->get_parameter("debug_logging").as_bool();
+        // debug_logging_ = node->get_parameter("debug_logging").as_bool();
+        debug_logging_ = true;
+        
+        RCLCPP_INFO(
+            node->get_logger(),
+            "still fine3.5");
 
         corrections_.clear();
         first_node_ = nodes_->end();
 
+        RCLCPP_INFO(
+            node->get_logger(),
+            "still fine4");
         // formulate problem
         angle_manifold_ = AngleManifold::Create();
 
@@ -96,6 +112,10 @@ void CeresSolver::configure(rclcpp_lifecycle::LifecycleNode::SharedPtr node)
 
         // choose linear solver default CHOL
         options_.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
+
+        RCLCPP_INFO(
+            node->get_logger(),
+            "still fine5");
         if (solver_type == "SPARSE_SCHUR")
         {
                 RCLCPP_INFO(

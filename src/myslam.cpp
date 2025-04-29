@@ -62,8 +62,8 @@ CallbackReturn MySlam::on_configure(const rclcpp_lifecycle::State &)
 
         first_measurement_ = true;
         mapper_ = std::make_unique<mapper_utils::Mapper>();
-        setSolver();
         mapper_->configure(shared_from_this());
+        setSolver();
 
         setParams();
 
@@ -101,21 +101,22 @@ CallbackReturn MySlam::on_activate(const rclcpp_lifecycle::State &)
         map_metadata_publisher_->on_activate();
         pose_publisher_->on_activate();
 
-        // double transform_publish_period = 0.05;
-        // if (!this->has_parameter("transform_publish_period"))
-        // {
-        //         this->declare_parameter("transform_publish_period", transform_publish_period);
-        // }
-        // transform_publish_period = this->get_parameter("transform_publish_period").as_double();
+        double transform_publish_period = 0.05;
+        if (!this->has_parameter("transform_publish_period"))
+        {
+                this->declare_parameter("transform_publish_period", transform_publish_period);
+        }
+        transform_publish_period = this->get_parameter("transform_publish_period").as_double();
 
-        // threads_.push_back(
-        //     std::make_unique<boost::thread>(
-        //         [this, transform_publish_period]() { 
-        //                 this->publishTransformLoop(transform_publish_period); 
-        //         })
-        // );
+        threads_.push_back(
+                std::make_unique<boost::thread>(
+                [this, transform_publish_period]() { 
+                        this->publishTransformLoop(transform_publish_period); 
+                })
+        );
 
-        threads_.push_back(std::make_unique<boost::thread>(
+        threads_.push_back(
+                std::make_unique<boost::thread>(
                 [this]() {
                         this->publishVisualizations();
                 })
@@ -346,7 +347,9 @@ void MySlam::setROSInterfaces()
 void MySlam::setSolver()
 /*****************************************************************************/
 {
+        RCLCPP_INFO(get_logger(), "still fine1");
         std::unique_ptr<solver_plugins::CeresSolver> solver = std::make_unique<solver_plugins::CeresSolver>();
+        RCLCPP_INFO(get_logger(), "still fine2");
         solver->configure(shared_from_this());
         mapper_->setScanSolver(std::move(solver));
 }
@@ -355,21 +358,18 @@ void MySlam::setSolver()
 void MySlam::publishTransformLoop(const double &transform_publish_period)
 /*****************************************************************************/
 {
-        if (transform_publish_period == 0)
-        {
+        if (transform_publish_period == 0) {
                 return;
         }
 
         rclcpp::Rate r(1.0 / transform_publish_period);
-        while (rclcpp::ok())
-        {
+        while (rclcpp::ok()) {
                 boost::this_thread::interruption_point();
                 {
                         boost::mutex::scoped_lock lock(map_to_odom_mutex_);
                         rclcpp::Time scan_timestamp = scan_header_.stamp;
                         // Avoid publishing tf with initial 0.0 scan timestamp
-                        if (scan_timestamp.seconds() > 0.0 && !scan_header_.frame_id.empty())
-                        {
+                        if (scan_timestamp.seconds() > 0.0 && !scan_header_.frame_id.empty()) {
                                 geometry_msgs::msg::TransformStamped msg;
                                 msg.transform = tf2::toMsg(map_to_odom_);
                                 msg.child_frame_id = odom_frame_;
@@ -518,20 +518,23 @@ mapper_utils::LocalizedRangeScan *MySlam::addScan(
         covariance.setIdentity();
 
         processed = mapper_->process(range_scan, &covariance);
-        std::cout << "still fine5" << std::endl;
 
-        // // if sucessfully processed, create odom2map transform
-        // if (processed) {
-        //         setTransformFromPoses(range_scan->getCorrectedPose(), odom_pose,
-        //                 scan->header.stamp, false);
+        // if sucessfully processed, create odom2map transform
+        if (processed) {
+                setTransformFromPoses(
+                        range_scan->getCorrectedPose(), 
+                        odom_pose,
+                        scan->header.stamp, 
+                        false);
 
-        //         // publishPose(range_scan->getCorrectedPose(), covariance, scan->header.stamp);
-        // } else {
-        //         delete range_scan;
-        //         range_scan = nullptr;
-        // }
-
-
+                publishPose(
+                        range_scan->getCorrectedPose(), 
+                        covariance, 
+                        scan->header.stamp);
+        } else {
+                delete range_scan;
+                range_scan = nullptr;
+        }
 
         return range_scan;                
 }

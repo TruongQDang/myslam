@@ -427,9 +427,6 @@ private:
                                 point.x() = scan_pose.getX() + (range_reading * cos(angle));
                                 point.y() = scan_pose.getY() + (range_reading * sin(angle));
 
-                                std::cout << "x: " << point.x() << std::endl;
-                                std::cout << "y: " << point.y() << std::endl;
-
                                 if (!math::InRange(range_reading, laser_->getMinimumRange(), range_threshold)) {
                                         unfiltered_point_readings_.push_back(point);
                                         continue;
@@ -1428,24 +1425,14 @@ public:
          * @param scanNum
          * @return localized range scan
          */
-        LocalizedRangeScan *getScan(int32_t scanIndex)
+        LocalizedRangeScan *getScan(int32_t scan_index)
         {
-                // ScanManager *pScanManager = GetScanManager(rSensorName);
-                // if (pScanManager != NULL)
-                // {
-                //         LocalizedRangeScanMap::iterator it = pScanManager->GetScans().find(scanIndex);
-                //         if (it != pScanManager->GetScans().end())
-                //         {
-                //                 return it->second;
-                //         }
-                //         else
-                //         {
-                //                 return nullptr;
-                //         }
-                // }
-
-                // assert(false);
-                // return NULL;
+                LocalizedRangeScanMap::iterator it = scans_.find(scan_index);
+                if (it != scans_.end()) {
+                        return it->second;
+                } else {
+                        return nullptr;
+                }
         }
 
         inline void setLastScan(LocalizedRangeScan *scan)
@@ -1515,20 +1502,19 @@ public:
          * @param rPose2
          * @param rCovariance
          */
-        void Update(const Pose2 &rPose1, const Pose2 &rPose2, const Matrix3d &rCovariance)
+        void Update(const Pose2 &pose1, const Pose2 &pose2, const Matrix3d &covariance)
         {
-                pose1_ = rPose1;
-                pose2_ = rPose2;
+                pose1_ = pose1;
+                pose2_ = pose2;
 
                 // transform second pose into the coordinate system of the first pose
-                Pose2::transformPose(pose1_.inverse(), pose2_);
+                Pose2::transformPose(pose1.inverse(), pose2);
 
                 // transform covariance into reference of first pose
-                Matrix3d rotationMatrix;
-                assert(0 > 1);
-                // rotationMatrix.FromAxisAngle(0, 0, 1, -rPose1.GetHeading());
-
-                covariance_ = rotationMatrix * rCovariance * rotationMatrix.transpose();
+                Matrix3d rotation_matrix = Eigen::AngleAxisd(
+                        pose1.getHeading(), 
+                        Eigen::Vector3d::UnitZ()).toRotationMatrix();
+                covariance_ = rotation_matrix * covariance * rotation_matrix.transpose();
         }
 
         /**
@@ -2625,7 +2611,7 @@ public:
                 scan_matcher_ = ScanMatcher::create(
                         this,
                         correlation_search_space_dimension_,
-                        correlation_search_space_dimension_,
+                        correlation_search_space_resolution_,
                         correlation_search_space_smear_deviation_,
                         range_threshold);
                 assert(scan_matcher_);
@@ -2706,6 +2692,141 @@ public:
         double getParamOccupancyThreshold()
         {
                 return occupancy_threshold_;
+        }
+
+public:
+        void setUseScanBarycenter(bool b) 
+        {
+                use_scan_barycenter_ = b;
+        }
+
+        void setScanBufferSize(int i)
+        {
+                scan_buffer_size_ = (uint32_t)i;
+        }
+
+        void setScanBufferMaximumScanDistance(double d)
+        {
+                scan_buffer_maximum_scan_distance_ = d;
+        }
+
+        void setLinkMatchMinimumResponseFine(double d)
+        {
+                link_match_minimum_response_fine_ = d;
+        }
+
+        void setLinkScanMaximumDistance(double d)
+        {
+                link_scan_maximum_distance_ = d;
+        }
+
+        void setLoopSearchMaximumDistance(double d)
+        {
+                loop_search_maximum_distance_ = d;
+                
+        }
+
+        void setLoopMatchMinimumChainSize(int i)
+        {
+                loop_match_minimum_chain_size_ = (uint32_t)i;
+        }
+
+        void setLoopMatchMaximumVarianceCoarse(double d)
+        {
+               loop_match_maximum_variance_coarse_ = d;
+        }
+
+        void setLoopMatchMinimumResponseCoarse(double d)
+        {
+               loop_match_minimum_response_coarse_ = d; 
+        }
+
+        void setLoopMatchMinimumResponseFine(double d)
+        {
+                loop_match_minimum_response_fine_ = d;
+        }
+
+        // Correlation Parameters - Correlation Parameters
+        void setCorrelationSearchSpaceDimension(double d)
+        {
+               correlation_search_space_dimension_ = d;
+        }
+
+        void setCorrelationSearchSpaceResolution(double d)
+        {
+                correlation_search_space_resolution_ = d;
+        }
+
+        void setCorrelationSearchSpaceSmearDeviation(double d)
+        {
+                correlation_search_space_smear_deviation_ = d;
+        }
+
+        // Correlation Parameters - Loop Closure Parameters
+        void setLoopSearchSpaceDimension(double d)
+        {
+                loop_search_space_dimension_ = d;
+        }
+
+        void setLoopSearchSpaceResolution(double d)
+        {
+               loop_search_space_resolution_ = d;
+        }
+
+        void setLoopSearchSpaceSmearDeviation(double d)
+        {
+                loop_search_space_smear_deviation_ = d;
+        }
+
+        // Scan Matcher Parameters
+        void setDistanceVariancePenalty(double d)
+        {
+                distance_variance_penalty_ = math::Square(d);
+        }
+
+        void setAngleVariancePenalty(double d)
+        {
+                angle_variance_penalty_ = math::Square(d);
+        }
+
+        void setFineSearchAngleOffset(double d)
+        {
+                fine_search_angle_offset_ = d;
+        }
+
+        void setCoarseSearchAngleOffset(double d)
+        {
+                coarse_search_angle_offset_ = d;
+        }
+
+        void setCoarseAngleResolution(double d)
+        {
+                coarse_angle_resolution_ = d;
+        }
+
+        void setMinimumAnglePenalty(double d)
+        {
+                minimum_angle_penalty_ = d;
+        }
+
+        void setMinimumDistancePenalty(double d)
+        {
+                minimum_distance_penalty_ = d;
+        }
+
+        void setUseResponseExpansion(bool b)
+        {
+                use_response_expansion = b;
+        }
+
+        void setMinPassThrough(int i)
+        {
+                min_pass_through_ = (uint32_t)i;
+        }
+
+        void setOccupancyThreshold(double d)
+        {
+                occupancy_threshold_ = d;
         }
 
 }; // Mapper

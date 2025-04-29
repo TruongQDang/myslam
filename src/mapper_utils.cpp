@@ -57,8 +57,13 @@ std::unique_ptr<ScanMatcher> ScanMatcher::create(
         // if a scan is on the border of the search space)
         uint32_t point_reading_margin = static_cast<uint32_t>(ceil(range_threshold / resolution));
 
+        std::cout << "search_space: " << search_space_side_size << std::endl;
+        std::cout << "point_reading_margin: " << point_reading_margin << std::endl;
+
         int32_t grid_size = search_space_side_size + 2 * point_reading_margin;
-        
+
+        std::cout << "grid_size: " << grid_size << std::endl;
+
         assert(grid_size % 2 == 1);
 
         std::unique_ptr<ScanMatcher> scan_matcher = std::make_unique<ScanMatcher>(mapper);
@@ -782,12 +787,13 @@ MapperGraph::MapperGraph(Mapper *mapper, double range_threshold)
         traversal_ = std::make_unique<BreadthFirstTraversal<LocalizedRangeScan>>(this);
 }
 
-Vertex<LocalizedRangeScan> *MapperGraph::addVertex(LocalizedRangeScan * scan)
+Vertex<LocalizedRangeScan> *MapperGraph::addVertex(LocalizedRangeScan *scan)
 {
         assert(scan);
 
         if (scan != nullptr) {
-                std::unique_ptr<Vertex<LocalizedRangeScan>> vertex = std::make_unique<Vertex<LocalizedRangeScan>>(scan);
+                std::unique_ptr<Vertex<LocalizedRangeScan>> vertex = 
+                        std::make_unique<Vertex<LocalizedRangeScan>>(scan);
                 Vertex<LocalizedRangeScan> *vertex_ptr = vertex.get();
                 Graph<LocalizedRangeScan>::addVertex(std::move(vertex));
                 if (mapper_->scan_optimizer_ != nullptr) {
@@ -864,6 +870,7 @@ bool MapperGraph::tryCloseLoop(LocalizedRangeScan * scan)
         uint32_t scanIndex = 0;
 
         LocalizedRangeScanVector candidateChain = FindPossibleLoopClosure(scan, scanIndex);
+        std::cout << "done FindPossibleLoopClosure1" << std::endl;
 
         while (!candidateChain.empty())
         {
@@ -942,18 +949,21 @@ LocalizedRangeScanVector MapperGraph::FindPossibleLoopClosure(
         LocalizedRangeScanVector chain; // return value
 
         Pose2 pose = scan->getReferencePose(mapper_->use_scan_barycenter_);
+        std::cout << "done getReferencePose1 in LoopClosure" << std::endl;
 
         // possible loop closure chain should not include close scans that have a
         // path of links to the scan of interest
         const LocalizedRangeScanVector nearLinkedScans =
                 findNearLinkedScans(scan, mapper_->loop_search_maximum_distance_);
+        std::cout << "done findNearLinkedScans in LoopClosure" << std::endl;
 
         uint32_t nScans =
             static_cast<uint32_t>(mapper_->scan_manager_->getAllScans().size());
         for (; rStartNum < nScans; rStartNum++) {
                 LocalizedRangeScan *pCandidateScan = mapper_->scan_manager_->getScan(rStartNum);
-
+                std::cout << "done get candidate scan" << std::endl;
                 if (pCandidateScan == nullptr) {
+                        std::cout << "no candidate scan" << std::endl;
                         continue;
                 }
 
@@ -1257,6 +1267,14 @@ LocalizedRangeScan *MapperGraph::getClosestScanToPose(
 template <class NodeT>
 void Mapper::configure(const NodeT &node)
 {
+        bool use_scan_barycenter = true;
+        if (!node->has_parameter("use_scan_barycenter"))
+        {
+                node->declare_parameter("use_scan_barycenter", use_scan_barycenter);
+        }
+        node->get_parameter("use_scan_barycenter", use_scan_barycenter);
+        use_scan_barycenter_ = use_scan_barycenter;
+
         double minimum_travel_distance = 0.5;
         if (!node->has_parameter("minimum_travel_distance"))
         {
@@ -1272,6 +1290,277 @@ void Mapper::configure(const NodeT &node)
         }
         node->get_parameter("minimum_travel_heading", minimum_travel_heading);
         minimum_travel_heading_ = minimum_travel_heading;
+
+        int scan_buffer_size = 10;
+        if (!node->has_parameter("scan_buffer_size"))
+        {
+                node->declare_parameter("scan_buffer_size", scan_buffer_size);
+        }
+        node->get_parameter("scan_buffer_size", scan_buffer_size);
+        if (scan_buffer_size <= 0)
+        {
+                RCLCPP_WARN(node->get_logger(),
+                            "You've set scan_buffer_size to be a value smaller than zero,"
+                            "this isn't allowed so it will be set to default value 10.");
+                scan_buffer_size = 10;
+        }
+        scan_buffer_size_ = scan_buffer_size;
+
+        double scan_buffer_maximum_scan_distance = 10;
+        if (!node->has_parameter("scan_buffer_maximum_scan_distance"))
+        {
+                node->declare_parameter("scan_buffer_maximum_scan_distance", scan_buffer_maximum_scan_distance);
+        }
+        node->get_parameter("scan_buffer_maximum_scan_distance", scan_buffer_maximum_scan_distance);
+        if (math::Square(scan_buffer_maximum_scan_distance) <= 1e-06)
+        {
+                RCLCPP_WARN(node->get_logger(),
+                            "You've set scan_buffer_maximum_scan_distance to be a value whose square is smaller than 1e-06,"
+                            "this isn't allowed so it will be set to default value 10.");
+                scan_buffer_maximum_scan_distance = 10;
+        }
+        scan_buffer_maximum_scan_distance_ = scan_buffer_maximum_scan_distance;
+
+        double link_match_minimum_response_fine = 0.1;
+        if (!node->has_parameter("link_match_minimum_response_fine"))
+        {
+                node->declare_parameter("link_match_minimum_response_fine", link_match_minimum_response_fine);
+        }
+        node->get_parameter("link_match_minimum_response_fine", link_match_minimum_response_fine);
+        link_match_minimum_response_fine_ = link_match_minimum_response_fine;
+
+        double link_scan_maximum_distance = 1.5;
+        if (!node->has_parameter("link_scan_maximum_distance"))
+        {
+                node->declare_parameter("link_scan_maximum_distance", link_scan_maximum_distance);
+        }
+        node->get_parameter("link_scan_maximum_distance", link_scan_maximum_distance);
+        setLinkScanMaximumDistance(link_scan_maximum_distance);
+
+        double loop_search_maximum_distance = 3.0;
+        if (!node->has_parameter("loop_search_maximum_distance"))
+        {
+                node->declare_parameter("loop_search_maximum_distance", loop_search_maximum_distance);
+        }
+        node->get_parameter("loop_search_maximum_distance", loop_search_maximum_distance);
+        setLoopSearchMaximumDistance(loop_search_maximum_distance);
+
+        int loop_match_minimum_chain_size = 10;
+        if (!node->has_parameter("loop_match_minimum_chain_size"))
+        {
+                node->declare_parameter("loop_match_minimum_chain_size", loop_match_minimum_chain_size);
+        }
+        node->get_parameter("loop_match_minimum_chain_size", loop_match_minimum_chain_size);
+        setLoopMatchMinimumChainSize(loop_match_minimum_chain_size);
+
+        double loop_match_maximum_variance_coarse = 3.0;
+        if (!node->has_parameter("loop_match_maximum_variance_coarse"))
+        {
+                node->declare_parameter(
+                    "loop_match_maximum_variance_coarse",
+                    loop_match_maximum_variance_coarse);
+        }
+        node->get_parameter("loop_match_maximum_variance_coarse", loop_match_maximum_variance_coarse);
+        setLoopMatchMaximumVarianceCoarse(loop_match_maximum_variance_coarse);
+
+        double loop_match_minimum_response_coarse = 0.35;
+        if (!node->has_parameter("loop_match_minimum_response_coarse"))
+        {
+                node->declare_parameter(
+                    "loop_match_minimum_response_coarse",
+                    loop_match_minimum_response_coarse);
+        }
+        node->get_parameter("loop_match_minimum_response_coarse", loop_match_minimum_response_coarse);
+        setLoopMatchMinimumResponseCoarse(loop_match_minimum_response_coarse);
+
+        double loop_match_minimum_response_fine = 0.45;
+        if (!node->has_parameter("loop_match_minimum_response_fine"))
+        {
+                node->declare_parameter("loop_match_minimum_response_fine", loop_match_minimum_response_fine);
+        }
+        node->get_parameter("loop_match_minimum_response_fine", loop_match_minimum_response_fine);
+        setLoopMatchMinimumResponseFine(loop_match_minimum_response_fine);
+
+        // Setting Correlation Parameters
+        double correlation_search_space_dimension = 0.5;
+        if (!node->has_parameter("correlation_search_space_dimension"))
+        {
+                node->declare_parameter(
+                    "correlation_search_space_dimension",
+                    correlation_search_space_dimension);
+        }
+        node->get_parameter("correlation_search_space_dimension", correlation_search_space_dimension);
+        if (correlation_search_space_dimension <= 0)
+        {
+                RCLCPP_WARN(node->get_logger(),
+                            "You've set correlation_search_space_dimension to be negative,"
+                            "this isn't allowed so it will be set to default value 0.5.");
+                correlation_search_space_dimension = 0.5;
+        }
+        setCorrelationSearchSpaceDimension(correlation_search_space_dimension);
+
+        double correlation_search_space_resolution = 0.01;
+        if (!node->has_parameter("correlation_search_space_resolution"))
+        {
+                node->declare_parameter(
+                    "correlation_search_space_resolution",
+                    correlation_search_space_resolution);
+        }
+        node->get_parameter("correlation_search_space_resolution", correlation_search_space_resolution);
+        if (correlation_search_space_resolution <= 0)
+        {
+                RCLCPP_WARN(node->get_logger(),
+                            "You've set correlation_search_space_resolution to be negative,"
+                            "this isn't allowed so it will be set to default value 0.01.");
+                correlation_search_space_resolution = 0.01;
+        }
+        setCorrelationSearchSpaceResolution(correlation_search_space_resolution);
+
+        double correlation_search_space_smear_deviation = 0.1;
+        if (!node->has_parameter("correlation_search_space_smear_deviation"))
+        {
+                node->declare_parameter(
+                    "correlation_search_space_smear_deviation",
+                    correlation_search_space_smear_deviation);
+        }
+        node->get_parameter(
+            "correlation_search_space_smear_deviation",
+            correlation_search_space_smear_deviation);
+        if (correlation_search_space_smear_deviation <= 0)
+        {
+                RCLCPP_WARN(node->get_logger(),
+                            "You've set correlation_search_space_smear_deviation to be negative,"
+                            "this isn't allowed so it will be set to default value 0.1.");
+                correlation_search_space_smear_deviation = 0.1;
+        }
+        setCorrelationSearchSpaceSmearDeviation(correlation_search_space_smear_deviation);
+
+        // Setting Correlation Parameters, Loop Closure Parameters
+        double loop_search_space_dimension = 8.0;
+        if (!node->has_parameter("loop_search_space_dimension"))
+        {
+                node->declare_parameter("loop_search_space_dimension", loop_search_space_dimension);
+        }
+        node->get_parameter("loop_search_space_dimension", loop_search_space_dimension);
+        if (loop_search_space_dimension <= 0)
+        {
+                RCLCPP_WARN(node->get_logger(),
+                            "You've set loop_search_space_dimension to be negative,"
+                            "this isn't allowed so it will be set to default value 8.0.");
+                loop_search_space_dimension = 8.0;
+        }
+        setLoopSearchSpaceDimension(loop_search_space_dimension);
+
+        double loop_search_space_resolution = 0.05;
+        if (!node->has_parameter("loop_search_space_resolution"))
+        {
+                node->declare_parameter("loop_search_space_resolution", loop_search_space_resolution);
+        }
+        node->get_parameter("loop_search_space_resolution", loop_search_space_resolution);
+        if (loop_search_space_resolution <= 0)
+        {
+                RCLCPP_WARN(node->get_logger(),
+                            "You've set loop_search_space_resolution to be negative,"
+                            "this isn't allowed so it will be set to default value 0.05.");
+                loop_search_space_resolution = 0.05;
+        }
+        setLoopSearchSpaceResolution(loop_search_space_resolution);
+
+        double loop_search_space_smear_deviation = 0.03;
+        if (!node->has_parameter("loop_search_space_smear_deviation"))
+        {
+                node->declare_parameter("loop_search_space_smear_deviation", loop_search_space_smear_deviation);
+        }
+        node->get_parameter("loop_search_space_smear_deviation", loop_search_space_smear_deviation);
+        if (loop_search_space_smear_deviation <= 0)
+        {
+                RCLCPP_WARN(node->get_logger(),
+                            "You've set loop_search_space_smear_deviation to be negative,"
+                            "this isn't allowed so it will be set to default value 0.03.");
+                loop_search_space_smear_deviation = 0.03;
+        }
+        setLoopSearchSpaceSmearDeviation(loop_search_space_smear_deviation);
+
+        // Setting Scan Matcher Parameters
+        double distance_variance_penalty = 0.5;
+        if (!node->has_parameter("distance_variance_penalty"))
+        {
+                node->declare_parameter("distance_variance_penalty", distance_variance_penalty);
+        }
+        node->get_parameter("distance_variance_penalty", distance_variance_penalty);
+        setDistanceVariancePenalty(distance_variance_penalty);
+
+        double angle_variance_penalty = 1.0;
+        if (!node->has_parameter("angle_variance_penalty"))
+        {
+                node->declare_parameter("angle_variance_penalty", angle_variance_penalty);
+        }
+        node->get_parameter("angle_variance_penalty", angle_variance_penalty);
+        setAngleVariancePenalty(angle_variance_penalty);
+
+        double fine_search_angle_offset = 0.00349;
+        if (!node->has_parameter("fine_search_angle_offset"))
+        {
+                node->declare_parameter("fine_search_angle_offset", fine_search_angle_offset);
+        }
+        node->get_parameter("fine_search_angle_offset", fine_search_angle_offset);
+        setFineSearchAngleOffset(fine_search_angle_offset);
+
+        double coarse_search_angle_offset = 0.349;
+        if (!node->has_parameter("coarse_search_angle_offset"))
+        {
+                node->declare_parameter("coarse_search_angle_offset", coarse_search_angle_offset);
+        }
+        node->get_parameter("coarse_search_angle_offset", coarse_search_angle_offset);
+        setCoarseSearchAngleOffset(coarse_search_angle_offset);
+
+        double coarse_angle_resolution = 0.0349;
+        if (!node->has_parameter("coarse_angle_resolution"))
+        {
+                node->declare_parameter("coarse_angle_resolution", coarse_angle_resolution);
+        }
+        node->get_parameter("coarse_angle_resolution", coarse_angle_resolution);
+        setCoarseAngleResolution(coarse_angle_resolution);
+
+        double minimum_angle_penalty = 0.9;
+        if (!node->has_parameter("minimum_angle_penalty"))
+        {
+                node->declare_parameter("minimum_angle_penalty", minimum_angle_penalty);
+        }
+        node->get_parameter("minimum_angle_penalty", minimum_angle_penalty);
+        setMinimumAnglePenalty(minimum_angle_penalty);
+
+        double minimum_distance_penalty = 0.05;
+        if (!node->has_parameter("minimum_distance_penalty"))
+        {
+                node->declare_parameter("minimum_distance_penalty", minimum_distance_penalty);
+        }
+        node->get_parameter("minimum_distance_penalty", minimum_distance_penalty);
+        setMinimumDistancePenalty(minimum_distance_penalty);
+
+        bool use_response_expansion = true;
+        if (!node->has_parameter("use_response_expansion"))
+        {
+                node->declare_parameter("use_response_expansion", use_response_expansion);
+        }
+        node->get_parameter("use_response_expansion", use_response_expansion);
+        setUseResponseExpansion(use_response_expansion);
+
+        int min_pass_through = 2;
+        if (!node->has_parameter("min_pass_through"))
+        {
+                node->declare_parameter("min_pass_through", min_pass_through);
+        }
+        node->get_parameter("min_pass_through", min_pass_through);
+        setMinPassThrough(min_pass_through);
+
+        double occupancy_threshold = 0.1;
+        if (!node->has_parameter("occupancy_threshold"))
+        {
+                node->declare_parameter("occupancy_threshold", occupancy_threshold);
+        }
+        node->get_parameter("occupancy_threshold", occupancy_threshold);
+        setOccupancyThreshold(occupancy_threshold);
 }
 
 // explicit instantiation for the supported template types
@@ -1319,16 +1608,21 @@ bool Mapper::process(LocalizedRangeScan * scan, Eigen::Matrix3d * covariance)
 
                 // add scan to buffer and assign id
                 scan_manager_->addScan(scan);
-
+                std::cout << "done addScan" << std::endl;
                 // add to graph
                 graph_->addVertex(scan);
+                std::cout << "done addVertex" << std::endl;
                 graph_->addEdges(scan, cov);
+                std::cout << "done addEdges" << std::endl;
 
                 scan_manager_->addRunningScan(scan);
+                std::cout << "done addRunningScan" << std::endl;
 
                 graph_->tryCloseLoop(scan);
+                std::cout << "done tryCloseLoop" << std::endl;
 
                 scan_manager_->setLastScan(scan);
+                std::cout << "done setLastScan" << std::endl;
 
                 return true;
         }

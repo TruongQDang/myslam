@@ -96,6 +96,7 @@
                 "valarray": "cpp",
                 "ranges": "cpp",
                 "queue": "cpp",
-                "stack": "cpp"
+                "stack": "cpp",
+                "random": "cpp"
         }
 }

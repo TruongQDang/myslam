@@ -768,6 +768,20 @@ void ScanMatcher::computeAngularCovariance(
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+MapperGraph::MapperGraph(Mapper *mapper, double range_threshold)
+        : mapper_(mapper)
+{
+        loop_scan_matcher_ = ScanMatcher::create(
+                mapper,
+                mapper_->loop_search_space_dimension_,
+                mapper_->loop_search_space_resolution_,
+                mapper_->loop_search_space_smear_deviation_, 
+                range_threshold);
+        assert(loop_scan_matcher_);
+
+        traversal_ = std::make_unique<BreadthFirstTraversal<LocalizedRangeScan>>(this);
+}
+
 Vertex<LocalizedRangeScan> *MapperGraph::addVertex(LocalizedRangeScan * scan)
 {
         assert(scan);
@@ -1005,12 +1019,12 @@ LocalizedRangeScanVector MapperGraph::findNearLinkedScans(LocalizedRangeScan *sc
                 scan, 
                 max_distance,
                 mapper_->use_scan_barycenter_);
-        // LocalizedRangeScanVector nearLinkedScans = traversal_->traverseForScans(
-        //         getVertex(scan),
-        //         visitor);
+        LocalizedRangeScanVector nearLinkedScans = traversal_->traverseForScans(
+                getVertex(scan),
+                visitor);
         delete visitor;
 
-        // return nearLinkedScans;
+        return nearLinkedScans;
 }
 
 void MapperGraph::linkChainToScan(
@@ -1037,16 +1051,205 @@ void MapperGraph::linkChainToScan(
 
 void MapperGraph::linkNearChains(
         LocalizedRangeScan *scan, Pose2Vector &means,
-        std::vector<Matrix3d> &covariance)
+        std::vector<Matrix3d> &covariances)
 {
+        const std::vector<LocalizedRangeScanVector> near_chains = findNearChains(scan);
+        for (const auto& scan_chain : near_chains) {
+                if (scan_chain.size() < mapper_->loop_match_minimum_chain_size_) {
+                        continue;
+                }
 
+                Pose2 mean;
+                Matrix3d covariance;
+                // match scan against "near" chain
+                double response = mapper_->scan_matcher_->matchScan(
+                        scan, 
+                        scan_chain, 
+                        mean,
+                        covariance, 
+                        false);
+                if (response > mapper_->link_match_minimum_response_fine_ - math::TOLERANCE) {
+                        means.push_back(mean);
+                        covariances.push_back(covariance);
+                        linkChainToScan(scan_chain, scan, mean, covariance);
+                }
+        }
+}
+
+std::vector<LocalizedRangeScanVector> MapperGraph::findNearChains(LocalizedRangeScan *scan)
+{
+        std::vector<LocalizedRangeScanVector> near_chains;
+
+        Pose2 scan_pose = scan->getReferencePose(mapper_->use_scan_barycenter_);
+
+        // to keep track of which scans have been added to a chain
+        LocalizedRangeScanVector processed;
+
+        const LocalizedRangeScanVector near_linked_scans = findNearLinkedScans(
+                scan,
+                mapper_->link_scan_maximum_distance_);
+        
+        for (const auto& near_scan : near_linked_scans) {
+                if (near_scan == scan) {
+                        continue;
+                }
+
+                // scan has already been processed, skip
+                if (find(processed.begin(), processed.end(), near_scan) != processed.end()) {
+                        continue;
+                }
+
+                processed.push_back(near_scan);
+
+                // build up chain
+                bool is_valid_chain = true;
+                std::list<LocalizedRangeScan *> chain;
+
+                // add scans before current scan being processed
+                for (int32_t candidateScanNum = near_scan->getScanId() - 1; candidateScanNum >= 0;
+                     candidateScanNum--)
+                {
+                        LocalizedRangeScan *pCandidateScan = mapper_->scan_manager_->getScan(candidateScanNum);
+
+                        // chain is invalid--contains scan being added
+                        if (pCandidateScan == scan)
+                        {
+                                is_valid_chain = false;
+                        }
+
+                        // probably removed in localization mode
+                        if (pCandidateScan == nullptr)
+                        {
+                                continue;
+                        }
+
+                        Pose2 candidatePose = pCandidateScan->getReferencePose(mapper_->use_scan_barycenter_);
+                        double squaredDistance = scan_pose.getSquaredDistance(candidatePose);
+
+                        if (squaredDistance <
+                            math::Square(mapper_->link_scan_maximum_distance_) + math::TOLERANCE)
+                        {
+                                chain.push_front(pCandidateScan);
+                                processed.push_back(pCandidateScan);
+                        }
+                        else
+                        {
+                                break;
+                        }
+                }
+
+                chain.push_back(near_scan);
+
+                // add scans after current scan being processed
+                uint32_t end =
+                        static_cast<uint32_t>(mapper_->scan_manager_->getAllScans().size());
+                for (uint32_t candidateScanNum = near_scan->getScanId() + 1; candidateScanNum < end;
+                     candidateScanNum++)
+                {
+                        LocalizedRangeScan *pCandidateScan = mapper_->scan_manager_->getScan(candidateScanNum);
+
+                        if (pCandidateScan == scan)
+                        {
+                                is_valid_chain = false;
+                        }
+
+                        // probably removed in localization mode
+                        if (pCandidateScan == nullptr)
+                        {
+                                continue;
+                        }
+
+                        Pose2 candidatePose = pCandidateScan->getReferencePose(mapper_->use_scan_barycenter_);
+                        double squaredDistance =
+                            scan_pose.getSquaredDistance(candidatePose);
+
+                        if (squaredDistance <
+                            math::Square(mapper_->link_scan_maximum_distance_) + math::TOLERANCE)
+                        {
+                                chain.push_back(pCandidateScan);
+                                processed.push_back(pCandidateScan);
+                        }
+                        else
+                        {
+                                break;
+                        }
+                }
+
+                if (is_valid_chain)
+                {
+                        // change list to vector
+                        LocalizedRangeScanVector tempChain;
+                        std::copy(chain.begin(), chain.end(), std::inserter(tempChain, tempChain.begin()));
+                        // add chain to collection
+                        near_chains.push_back(tempChain);
+                }
+        }
+
+        return near_chains;
+}
+
+Pose2 MapperGraph::computeWeightedMean(
+        const Pose2Vector &means,
+        const std::vector<Matrix3d> &covariances) const
+{
+        assert(means.size() == covariances.size());
+
+        // compute sum of inverses and create inverse list
+        std::vector<Matrix3d> inverses;
+        inverses.reserve(covariances.size());
+
+        Matrix3d sumOfInverses;
+        for (const auto& cov : covariances) {
+                Matrix3d inverse = cov.inverse();
+                inverses.push_back(inverse);
+
+                sumOfInverses += inverse;
+        }
+        Matrix3d inverseOfSumOfInverses = sumOfInverses.inverse();
+
+        // compute weighted mean
+        Pose2 accumulatedPose;
+        double thetaX = 0.0;
+        double thetaY = 0.0;
+
+        Pose2Vector::const_iterator meansIter = means.begin();
+        for (const auto& inverse_iter : inverses) {
+                Pose2 pose = *meansIter;
+                double angle = pose.getHeading();
+                thetaX += cos(angle);
+                thetaY += sin(angle);
+
+                Matrix3d weight = inverseOfSumOfInverses * (inverse_iter);
+                accumulatedPose += pose.multiplyLeftMatrix(weight);
+
+                ++meansIter;
+        }
+
+        thetaX /= means.size();
+        thetaY /= means.size();
+        accumulatedPose.setHeading(atan2(thetaY, thetaX));
+
+        return accumulatedPose;
 }
 
 LocalizedRangeScan *MapperGraph::getClosestScanToPose(
         const LocalizedRangeScanVector &scans,
         const Pose2 &pose) const
 {
+        LocalizedRangeScan *closest_scan = nullptr;
+        double best_squared_distance = DBL_MAX;
 
+        for (const auto& scan : scans) {
+                Pose2 scan_pose = scan->getReferencePose(mapper_->use_scan_barycenter_);
+
+                double squared_distance = pose.getSquaredDistance(scan_pose);
+                if (squared_distance < best_squared_distance) {
+                        best_squared_distance = squared_distance;
+                        closest_scan = scan;
+                }
+        }
+
+        return closest_scan;
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -20,6 +20,7 @@
 
 #include "myslam/myslam_types.hpp"
 #include "myslam/mapper_utils.hpp"
+#include "myslam/ceres_solver.hpp"
 
 
 
@@ -48,6 +49,7 @@ protected:
         // // setup
         void setParams();
         void setROSInterfaces();
+        void setSolver();
 
         // callbacks
         void laserCallback(sensor_msgs::msg::LaserScan::ConstSharedPtr scan);

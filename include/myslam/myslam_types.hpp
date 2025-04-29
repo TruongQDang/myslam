@@ -3,6 +3,8 @@
 
 #include "rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp"
 #include <Eigen/Geometry>
+#include <unordered_map>
+#include "myslam/math.hpp"
 
 // compute linear index for given map coords
 #define MAP_IDX(sx, i, j) ((sx) * (j) + (i))
@@ -92,14 +94,66 @@ public:
         {
         }
 
+        /**
+         * Matrix3d and Pose2 multiplication - matrix * pose [3x3 * 3x1 = 3x1]
+         * @param rPose2
+         * @return Pose2 product
+         */
+        inline Pose2 multiplyLeftMatrix(const Eigen::Matrix3d &mat)
+        {
+                Pose2 result;
+
+                result.setX(mat(0, 0) * this->getX() + mat(0, 1) * this->getY() + mat(0, 2) * this->getHeading());
+                result.setY(mat(1, 0) * this->getX() + mat(1, 1) * this->getY() + mat(1, 2) * this->getHeading());
+                result.setHeading(mat(2, 0) * this->getX() + mat(2, 1) * this->getY() + mat(2, 2) * this->getHeading());
+
+                return result;
+        }
+
+        /**
+         * In place Pose2 add.
+         */
+        inline void operator+=(const Pose2 &other)
+        {
+                pose_.translation() += other.pose_.translation();
+                this->setHeading(math::NormalizeAngle(this->getHeading() + other.getHeading()));
+        }
+
+        /**
+         * Sets the x-coordinate
+         * @param x the x-coordinate of the pose
+         */
+        inline void setX(double x)
+        {
+                pose_.translation().x() = x;
+        }
+
         inline double getX() const
         {
                 return pose_.translation().x(); 
         }
 
+        /**
+         * Sets the x-coordinate
+         * @param x the x-coordinate of the pose
+         */
+        inline void setY(double y)
+        {
+                pose_.translation().y() = y;
+        }
+
         inline double getY() const
         {
                 return pose_.translation().y();
+        }
+
+        /**
+         * Sets the heading
+         * @param heading of the pose
+         */
+        inline void setHeading(double heading)
+        {
+                pose_.linear() = Eigen::Rotation2Dd(heading).toRotationMatrix();
         }
 
         inline double getHeading() const
@@ -348,6 +402,8 @@ enum class GridStates : uint8_t
 };
 
 typedef rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn CallbackReturn;
+typedef std::unordered_map<int, Eigen::Vector3d>::const_iterator ConstGraphIterator;
+typedef std::unordered_map<int, Eigen::Vector3d>::iterator GraphIterator;
 
 typedef std::vector<Pose2> Pose2Vector;
 typedef Eigen::Matrix<int32_t, 2, 1> Vector2i;

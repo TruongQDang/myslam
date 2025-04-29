@@ -62,6 +62,7 @@ CallbackReturn MySlam::on_configure(const rclcpp_lifecycle::State &)
 
         first_measurement_ = true;
         mapper_ = std::make_unique<mapper_utils::Mapper>();
+        setSolver();
         mapper_->configure(shared_from_this());
 
         setParams();
@@ -339,6 +340,15 @@ void MySlam::setROSInterfaces()
                 [this](const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan) {
                         this->laserCallback(scan);
                 });
+}
+
+/*****************************************************************************/
+void MySlam::setSolver()
+/*****************************************************************************/
+{
+        std::unique_ptr<solver_plugins::CeresSolver> solver = std::make_unique<solver_plugins::CeresSolver>();
+        solver->configure(shared_from_this());
+        mapper_->setScanSolver(std::move(solver));
 }
 
 /*****************************************************************************/

@@ -31,6 +31,8 @@ class ScanManager;
 class ScanMatcher;
 template <typename T>
 class Edge;
+template <typename T>
+class Visitor;
 class LaserRangeFinder;
 class OccupancyGrid;
 class CellUpdater;
@@ -574,19 +576,6 @@ public:
 template <typename T>
 class Grid
 {
-protected:
-        /**
-         * Constructs grid of given size
-         * @param width
-         * @param height
-         */
-        Grid(int32_t width, int32_t height)
-            : data_(nullptr),
-              coordinate_converter_(nullptr)
-        {
-                resize(width, height);
-        }
-
 private:
         int32_t width_;                             // width of grid
         int32_t height_;                            // height of grid
@@ -599,9 +588,21 @@ public:
         {
         }
 
+        /**
+         * Constructs grid of given size
+         * @param width
+         * @param height
+         */
+        Grid(int32_t width, int32_t height)
+            : data_(nullptr),
+              coordinate_converter_(nullptr)
+        {
+                resize(width, height);
+        }
+
         static std::unique_ptr<Grid<T>> createGrid(int32_t width, int32_t height, double resolution)
         {
-                Grid grid = std::make_unique<Grid<T>>(width, height);
+                std::unique_ptr<Grid<T>> grid = std::make_unique<Grid<T>>(width, height);
 
                 grid->getCoordinateConverter()->setScale(1.0 / resolution);
 
@@ -880,6 +881,13 @@ private:
 public:
         GridIndexLookup()
         { 
+        }
+
+        GridIndexLookup(Grid<T> *grid) // NOLINT
+                : grid_(grid),
+                capacity_(0),
+                size_(0)
+        {
         }
 
         /**
@@ -1522,6 +1530,24 @@ public:
 
                 covariance_ = rotationMatrix * rCovariance * rotationMatrix.transpose();
         }
+
+        /**
+         * Gets the pose difference
+         * @return pose difference
+         */
+        inline const Pose2 &getPoseDifference()
+        {
+                return pose_difference_;
+        }
+
+        /**
+         * Gets the link covariance
+         * @return link covariance
+         */
+        inline const Matrix3d &getCovariance()
+        {
+                return covariance_;
+        }
 }; // LinkInfo
 
 ///////////////////////////////////////////////////////////////////////
@@ -1532,7 +1558,7 @@ public:
 template<typename T>
 class Vertex
 {
-        friend class Edge<T>
+        friend class Edge<T>;
 private:
         T *object_;
         std::vector<Edge<T> *> edges_; 
@@ -1587,6 +1613,16 @@ public:
 
                 return vertices;
         }
+private:
+        /**
+         * Adds the given edge to this vertex's edge list
+         * @param pEdge edge to add
+         */
+        inline void addEdge(Edge<T> *edge)
+        {
+                edges_.push_back(edge);
+        }
+
 }; // Vertex
 
 ///////////////////////////////////////////////////////////////////////
@@ -1628,6 +1664,15 @@ public:
         inline void setLabel(LinkInfo *label)
         {
                 label_ = label;
+        }
+
+        /**
+         * Gets the link info
+         * @return link info
+         */
+        inline LinkInfo *getLabel()
+        {
+                return label_;
         }
 
         /**
@@ -1673,7 +1718,7 @@ public:
          */
         inline void addEdge(std::unique_ptr<Edge<T>> edge)
         {
-                edges_.push_back(edge);
+                edges_.push_back(std::move(edge));
         }
 
 }; // Graph
@@ -1701,6 +1746,30 @@ private:
 public:
         CorrelationGrid()
         {
+        }
+
+        /**
+         * Constructs a correlation grid of given size and parameters
+         * @param width
+         * @param height
+         * @param borderSize
+         * @param resolution
+         * @param smearDeviation
+         */
+        CorrelationGrid(
+            uint32_t width, uint32_t height, uint32_t borderSize,
+            double resolution, double smearDeviation)
+            : Grid<uint8_t>(width + borderSize * 2, height + borderSize * 2),
+              smear_deviation_(smearDeviation),
+              kernel_(nullptr)
+        {
+                getCoordinateConverter()->setScale(1.0 / resolution);
+
+                // setup region of interest
+                roi_ = Rectangle2<int32_t>(borderSize, borderSize, width, height);
+
+                // calculate kernel
+                calculateKernel();
         }
 
         static std::unique_ptr<CorrelationGrid> createGrid(
@@ -1765,29 +1834,6 @@ public:
         }
 
 protected:
-        /**
-         * Constructs a correlation grid of given size and parameters
-         * @param width
-         * @param height
-         * @param borderSize
-         * @param resolution
-         * @param smearDeviation
-         */
-        CorrelationGrid(
-                uint32_t width, uint32_t height, uint32_t borderSize,
-                double resolution, double smearDeviation)
-                : Grid<uint8_t>(width + borderSize * 2, height + borderSize * 2),
-                smear_deviation_(smearDeviation),
-                kernel_(nullptr)
-        {
-                getCoordinateConverter()->setScale(1.0 / resolution);
-
-                // setup region of interest
-                roi_ = Rectangle2<int32_t>(borderSize, borderSize, width, height);
-
-                // calculate kernel
-                calculateKernel();
-        }
 
         /**
          * Computes the kernel half-size based on the smear distance and the grid resolution.
@@ -1922,6 +1968,19 @@ public:
         }
 
         /**
+         * Default constructor
+         */
+        explicit ScanMatcher(Mapper *mapper)
+            : mapper_(mapper),
+              correlation_grid_(nullptr),
+              search_space_probs_(nullptr),
+              grid_lookup_(nullptr),
+              pose_response_(nullptr),
+              do_penalize_(false)
+        {
+        }
+
+        /**
          * Parallelize scan matching
          */
         void operator()(const double &y) const;
@@ -2035,6 +2094,17 @@ public:
         {
         }
 
+        explicit GraphTraversal(Graph<T> *pGraph)
+            : graph_(pGraph)
+        {
+        }
+
+public:
+        virtual std::vector<T *> traverseForScans(Vertex<T> *start_vertex, Visitor<T> *visitor) = 0;
+        virtual std::vector<Vertex<T> *> traverseForVertices(
+            Vertex<T> *start_vertex,
+            Visitor<T> *visitor) = 0;
+
 }; // GraphTraversal<T>
 
 ///////////////////////////////////////////////////////////////////////
@@ -2049,8 +2119,8 @@ public:
         BreadthFirstTraversal()
         {
         }
-        explicit BreadthFirstTraversal(Graph<T> *pGraph)
-            : GraphTraversal<T>(pGraph)
+        explicit BreadthFirstTraversal(Graph<T> *graph)
+                : GraphTraversal<T>(graph)
         {
         }
 
@@ -2174,17 +2244,24 @@ private:
         /**
          * Scan matcher for loop closures
          */
-        ScanMatcher *loop_scan_matcher_;
+        std::unique_ptr<ScanMatcher> loop_scan_matcher_;
 
         /**
          * Traversal algorithm to find near linked scans
          */
-        GraphTraversal<LocalizedRangeScan> *traversal_;
+        std::unique_ptr<GraphTraversal<LocalizedRangeScan>> traversal_;
 
 public:
         MapperGraph()
         {
         }
+
+        /**
+         * Graph for graph SLAM
+         * @param pMapper
+         * @param rangeThreshold
+         */
+        MapperGraph(Mapper *mapper, double range_threshold);
 
         /**
          * Adds a vertex representing the given scan to the graph
@@ -2226,6 +2303,13 @@ public:
          * @param maxDistance
          */
         LocalizedRangeScanVector findNearLinkedScans(LocalizedRangeScan *scan, double max_distance);
+
+        /**
+         * Find "nearby" (no further than given distance away) scans through graph links
+         * @param pScan
+         * @param maxDistance
+         */
+        LocalizedRangeScanVector FindNearByScans(const Pose2 refPose, double maxDistance);
 
 private:
         /**
@@ -2283,7 +2367,7 @@ private:
          */
         void linkNearChains(
             LocalizedRangeScan *scan, Pose2Vector &means,
-            std::vector<Matrix3d> &covariance);
+            std::vector<Matrix3d> &covariances);
 
         /**
          * Find chains of scans that are close to given scan
@@ -2301,6 +2385,26 @@ private:
         Pose2 computeWeightedMean(
             const Pose2Vector &means,
             const std::vector<Matrix3d> &covariances) const;
+
+        /**
+         * Gets the vertex associated with the given scan
+         * @param pScan
+         * @return vertex of scan
+         */
+        inline Vertex<LocalizedRangeScan> *getVertex(LocalizedRangeScan *scan)
+        {
+                std::map<int, std::unique_ptr<Vertex<LocalizedRangeScan>>>::iterator it = vertices_.find(
+                    scan->getScanId());
+                if (it != vertices_.end())
+                {
+                        return it->second.get();
+                }
+                else
+                {
+                        std::cout << "GetVertex: Failed to get vertex, idx " << scan->getScanId() << " is not in m_Vertices." << std::endl;
+                        return nullptr;
+                }
+        }
 
 }; // MapperGraph
 
@@ -2441,6 +2545,12 @@ protected:
         bool use_scan_barycenter_;
 
         /**
+         * Scans are linked only if the correlation response value is greater than this value.
+         * Default value is 0.4
+         */
+        double link_match_minimum_response_fine_;
+
+        /**
          * Maximum distance between linked scans.  Scans that are farther apart will not be linked
          * regardless of the correlation response value.
          * Default value is 6.0 meters.
@@ -2481,6 +2591,24 @@ protected:
          */
         double loop_match_minimum_response_fine_;
 
+        /**
+         * The size of the search grid used by the matcher.
+         * Default value is 0.3 meters which tells the matcher to use a 30cm x 30cm grid.
+         */
+        double loop_search_space_dimension_;
+
+        /**
+         * The resolution (size of a grid cell) of the correlation grid.
+         * Default value is 0.01 meters.
+         */
+        double loop_search_space_resolution_;
+
+        /**
+         * The point readings are smeared by this value in X and Y to create a smoother response.
+         * Default value is 0.03 meters.
+         */
+        double loop_search_space_smear_deviation_;
+
         std::unique_ptr<ScanManager> scan_manager_;
         std::unique_ptr<ScanMatcher> scan_matcher_;
         std::unique_ptr<MapperGraph> graph_;
@@ -2507,10 +2635,11 @@ public:
                         correlation_search_space_dimension_,
                         correlation_search_space_smear_deviation_,
                         range_threshold);
+                assert(scan_matcher_);
 
                 scan_manager_ = std::make_unique<ScanManager>(scan_buffer_size_, scan_buffer_maximum_scan_distance_);
 
-                // graph_ = std::make_unique<MapperGraph>(this, range_threshold);
+                graph_ = std::make_unique<MapperGraph>(this, range_threshold);
 
                 initialized_ = true;
         }
@@ -2524,6 +2653,11 @@ public:
 
         inline double getMinimumTravelHeading() const {
                 return minimum_travel_heading_;
+        }
+
+        void setScanSolver(std::unique_ptr<ScanSolver> scan_optimizer)
+        {
+                scan_optimizer_ = std::move(scan_optimizer);
         }
 
         /**

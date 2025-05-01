@@ -612,7 +612,7 @@ public:
          */
         inline T *getDataPointer()
         {
-        return data_;
+                return data_;
         }
 
         /**
@@ -1449,17 +1449,11 @@ public:
 
         inline void addScan(LocalizedRangeScan *scan) 
         {
-                std::cout << "traced from 4::1::0" << std::endl;
-                if (scan == nullptr) {
-                        std::cout << "scan is nullptr" << std::endl;
-                }
                 // assign unique scan id
                 scan->setScanId(next_scan_id_);
                 // add to scan buffer
-                std::cout << "number of range reading before add: " << scan->getLaserRangeFinder()->getNumberOfRangeReadings() << std::endl;
                 scans_.emplace(next_scan_id_, scan);
                 next_scan_id_++;
-                std::cout << "traced from 4::1::2" << std::endl;
         }
 
         void setRunningScanBufferSize(uint32_t scan_buffer_size)
@@ -1781,10 +1775,24 @@ public:
         }
 
         /**
+         * Gets the index into the data pointer of the given grid coordinate
+         * @param rGrid
+         * @param boundaryCheck
+         * @return grid index
+         */
+        virtual int32_t getGridIndex(const Vector2i &grid, bool boundary_check = true) const
+        {
+                int32_t x = grid.x() + roi_.getX();
+                int32_t y = grid.y() + roi_.getY();
+
+                return Grid<uint8_t>::getGridIndex(Vector2i(x, y), boundary_check);
+        }
+
+        /**
          * Smear cell if the cell at the given point is marked as "occupied"
          * @param rGridPoint
          */
-        inline void smearPoint(const Eigen::Matrix<int32_t, 2, 1> &grid_point)
+        inline void smearPoint(const Vector2i &grid_point)
         {
                 assert(kernel_ != nullptr);
 
@@ -1796,18 +1804,16 @@ public:
                 int32_t half_kernel = kernel_size_ / 2;
 
                 // apply kernel
-                for (int32_t j = -half_kernel; j <= half_kernel; j++)
-                {
-                        uint8_t *grid_adr =
-                            getDataPointer(Eigen::Matrix<int32_t, 2, 1>(grid_point.x(), grid_point.y() + j));
+                for (int32_t j = -half_kernel; j <= half_kernel; j++) {
+                        uint8_t *grid_adr = getDataPointer(
+                                Vector2i(grid_point.x(), grid_point.y() + j));
 
                         int32_t kernel_constant = (half_kernel) + kernel_size_ * (j + half_kernel);
 
                         // if a point is on the edge of the grid, there is no problem
                         // with running over the edge of allowable memory, because
                         // the grid has margins to compensate for the kernel size
-                        for (int32_t i = -half_kernel; i <= half_kernel; i++)
-                        {
+                        for (int32_t i = -half_kernel; i <= half_kernel; i++) {
                                 int32_t kernel_array_index = i + kernel_constant;
 
                                 uint8_t kernel_value = kernel_[kernel_array_index];
@@ -2441,10 +2447,6 @@ class Mapper
 {
         friend class ScanMatcher;
         friend class MapperGraph;
-
-private:
-
-
 protected:
         // state
         bool initialized_;
@@ -2592,6 +2594,8 @@ protected:
         std::unique_ptr<ScanMatcher> scan_matcher_;
         std::unique_ptr<MapperGraph> graph_;
         std::unique_ptr<ScanSolver> scan_optimizer_;
+protected:
+        bool hasMovedEnough(LocalizedRangeScan *scan, LocalizedRangeScan *last_scan) const;
 
 public:
         Mapper()
@@ -2630,6 +2634,9 @@ public:
                 return minimum_travel_distance_;
         }
 
+        /**
+         * @return Minimum travel heading in radians 
+         */
         inline double getMinimumTravelHeading() const {
                 return minimum_travel_heading_;
         }
@@ -2880,7 +2887,11 @@ public:
 
                 const double yaw = tf2::getYaw(tmp_pose.transform.rotation);
                 pose = Pose2(tmp_pose.transform.translation.x,
-                             tmp_pose.transform.translation.y, yaw);
+                             tmp_pose.transform.translation.y, 
+                             yaw);
+                std::cout << "x: " << tmp_pose.transform.translation.x
+                        << " y: " << tmp_pose.transform.translation.y 
+                        << " heading: " << yaw << std::endl;
 
                 return true;
         }

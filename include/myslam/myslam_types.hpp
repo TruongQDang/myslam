@@ -156,6 +156,9 @@ public:
                 pose_.linear() = Eigen::Rotation2Dd(heading).toRotationMatrix();
         }
 
+        /**
+         * @return heading in radians 
+         */
         inline double getHeading() const
         {
                 return Eigen::Rotation2D<double>(pose_.linear()).angle();
@@ -197,6 +200,17 @@ public:
         static Pose2 getRelativePose(const Pose2& target_pose, const Pose2& source_pose)
         {
                 return Pose2(target_pose.pose_ * source_pose.pose_.inverse());
+        }
+
+        /**
+         * Write this pose onto output stream
+         * @param rStream output stream
+         * @param rPose to read
+         */
+        friend inline std::ostream &operator<<(std::ostream &stream, const Pose2 &pose)
+        {
+                stream << pose.getX() << " " << pose.getY() << " " << pose.getHeading();
+                return stream;
         }
 
 private:
@@ -321,6 +335,24 @@ public:
         inline T getHeight() const
         {
                 return size_.getHeight();
+        }
+
+        /**
+         * Gets the x-coordinate of the left edge of this rectangle
+         * @return the x-coordinate of the left edge of this rectangle
+         */
+        inline T getX() const
+        {
+                return position_.x();
+        }
+
+        /**
+         * Gets the y-coordinate of the bottom edge of this rectangle
+         * @return the y-coordinate of the bottom edge of this rectangle
+         */
+        inline T getY() const
+        {
+                return position_.y();
         }
 
 }; // Rectangle2

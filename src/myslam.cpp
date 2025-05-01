@@ -36,7 +36,7 @@ MySlam::MySlam(rclcpp::NodeOptions options)
 void MySlam::laserCallback(sensor_msgs::msg::LaserScan::ConstSharedPtr scan)
 /*****************************************************************************/
 {
-        // // get transform from odom to base
+        // get transform from odom to base
         scan_header_ = scan->header;
         Pose2 odom_pose;
         if (!pose_helper_->getPose(odom_pose, scan->header.stamp, odom_frame_, base_frame_)) {
@@ -101,7 +101,7 @@ CallbackReturn MySlam::on_activate(const rclcpp_lifecycle::State &)
         map_metadata_publisher_->on_activate();
         pose_publisher_->on_activate();
 
-        double transform_publish_period = 0.05;
+        double transform_publish_period = 0.02;
         if (!this->has_parameter("transform_publish_period"))
         {
                 this->declare_parameter("transform_publish_period", transform_publish_period);
@@ -295,13 +295,14 @@ void MySlam::setParams()
         yaw_covariance_scale_ = this->get_parameter("yaw_covariance_scale").as_double();
 
 
-        double tmp_val = 0.5;
+        double tmp_val = 0.2;
         if (!this->has_parameter("transform_timeout"))
         {
                 this->declare_parameter("transform_timeout", tmp_val);
         }
         tmp_val = this->get_parameter("transform_timeout").as_double();
         transform_timeout_ = rclcpp::Duration::from_seconds(tmp_val);
+        tmp_val = 0.5;
         if (!this->has_parameter("minimum_time_interval"))
         {
                 this->declare_parameter("minimum_time_interval", tmp_val);
@@ -395,9 +396,9 @@ void MySlam::publishVisualizations()
         og.info.origin.orientation.y = 0.0;
         og.info.origin.orientation.z = 0.0;
         og.info.origin.orientation.w = 1.0;
-        og.header.frame_id = odom_frame_;
+        og.header.frame_id = map_frame_;
 
-        double map_update_interval = 5.0; // 10.0 default
+        double map_update_interval = 5.0;
         if (!this->has_parameter("map_update_interval"))
         {
                 this->declare_parameter("map_update_interval", map_update_interval);
@@ -405,24 +406,15 @@ void MySlam::publishVisualizations()
         map_update_interval = this->get_parameter("map_update_interval").as_double();
         rclcpp::Rate r(1.0 / map_update_interval);
 
-        try
-        {
-                RCLCPP_INFO(get_logger(), "Thread started: publishVisualizations()");
-                while (rclcpp::ok())
-                {
-                        RCLCPP_INFO(get_logger(), "rclcpp::ok() is true");
+        try {
+                while (rclcpp::ok()) {
                         boost::this_thread::interruption_point();
-                        RCLCPP_INFO(get_logger(), "about to call updatemap");
                         updateMap();
                         r.sleep();
                 }
-                RCLCPP_INFO(get_logger(), "rclcpp::ok() is false, exiting thread");
-        }
-        catch (const std::exception &e)
-        {
+        } catch (const std::exception &e) {
                 RCLCPP_ERROR(get_logger(), "Exception in thread: %s", e.what());
         }
-        RCLCPP_INFO(get_logger(), "Thread exiting: publishVisualizations()");
 }
 
 /*****************************************************************************/
@@ -435,10 +427,8 @@ bool MySlam::updateMap()
                 return true;
         }
         boost::mutex::scoped_lock lock(mapper_mutex_);
-        RCLCPP_INFO(get_logger(), "get into updatemap");
         mapper_utils::OccupancyGrid *occ_grid = mapper_->getOccupancyGrid(resolution_);
-        if (!occ_grid)
-        {
+        if (!occ_grid) {
                 return false;
         }
 
@@ -446,7 +436,6 @@ bool MySlam::updateMap()
 
         // publish map as current
         map_.map.header.stamp = scan_header_.stamp;
-        RCLCPP_INFO(get_logger(), "publishing map");
         map_publisher_->publish(
             std::move(std::make_unique<nav_msgs::msg::OccupancyGrid>(map_.map)));
         map_metadata_publisher_->publish(
@@ -463,11 +452,12 @@ bool MySlam::shouldProcessScan(
         const Pose2 &pose)
 /*****************************************************************************/
 {
-        static mapper_utils::Pose2 last_pose;
+        static Pose2 last_pose;
         static rclcpp::Time last_scan_time = rclcpp::Time(0.);
         static double min_dist2 =
                 mapper_->getMinimumTravelDistance() * 
                 mapper_->getMinimumTravelDistance();
+        static double min_heading = mapper_->getMinimumTravelHeading();
         static int scan_count = 0;
         scan_count++;
         
@@ -491,8 +481,8 @@ bool MySlam::shouldProcessScan(
 
         // check if moved enough between scans, within 10% for correction error
         const double dist2 = last_pose.getSquaredDistance(pose);
-        if (dist2 < 0.8 * min_dist2 || scan_count < 5)
-        {
+        double heading_diff = math::NormalizeAngle(pose.getHeading() - last_pose.getHeading());
+        if (dist2 < 0.8 * min_dist2 && fabs(heading_diff) < 0.9 * min_heading || scan_count < 5) {
                 return false;
         }
 
@@ -607,6 +597,7 @@ void MySlam::publishPose(
         pose_msg.pose.covariance[35] = cov(2, 2) * yaw_covariance_scale_;     // yaw
 
         pose_publisher_->publish(pose_msg);
+        // RCLCPP_INFO(get_logger(), "publish map_")
 }
 
 /*****************************************************************************/

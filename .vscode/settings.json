@@ -104,6 +104,7 @@
                 "numbers": "cpp",
                 "shared_mutex": "cpp",
                 "stop_token": "cpp",
-                "typeindex": "cpp"
+                "typeindex": "cpp",
+                "nonlinearoptimization": "cpp"
         }
 }

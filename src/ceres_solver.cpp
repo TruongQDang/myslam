@@ -65,9 +65,6 @@ void CeresSolver::configure(rclcpp_lifecycle::LifecycleNode::SharedPtr node)
         }
         loss_fn = node->get_parameter("ceres_loss_function").as_string();
 
-        RCLCPP_INFO(
-            node->get_logger(),
-            "still fine3.1");
 
         if (!node->has_parameter("mode"))
         {
@@ -79,17 +76,10 @@ void CeresSolver::configure(rclcpp_lifecycle::LifecycleNode::SharedPtr node)
 
         // debug_logging_ = node->get_parameter("debug_logging").as_bool();
         debug_logging_ = true;
-        
-        RCLCPP_INFO(
-            node->get_logger(),
-            "still fine3.5");
 
         corrections_.clear();
         first_node_ = nodes_->end();
 
-        RCLCPP_INFO(
-            node->get_logger(),
-            "still fine4");
         // formulate problem
         angle_manifold_ = AngleManifold::Create();
 
@@ -375,6 +365,14 @@ const mapper_utils::ScanSolver::IdPoseVector &CeresSolver::getCorrections() cons
 /*****************************************************************************/
 {
         return corrections_;
+}
+
+/*****************************************************************************/
+std::unordered_map<int, Eigen::Vector3d> *CeresSolver::getGraph()
+/*****************************************************************************/
+{
+        boost::mutex::scoped_lock lock(nodes_mutex_);
+        return nodes_;
 }
 
 } // namespace solver_plugins

@@ -415,11 +415,6 @@ private:
                         Eigen::Vector2d range_points_sum(0,0);
                         uint32_t beam_num = 0;
 
-                        std::cout << "minimum range: " << laser_->getMinimumRange() << std::endl;
-                        std::cout << "range threshold: " << range_threshold << std::endl;
-                        std::cout << "scan_pose x: " << scan_pose.getX() << std::endl;
-                        std::cout << "heading of robot: " << scan_pose.getHeading() << std::endl;
-
                         for (uint32_t i = 0; i < laser_->getNumberOfRangeReadings(); i++, beam_num++) {
                                 double range_reading = getRangeReadings()[i];
                                 double angle = scan_pose.getHeading() + minimum_angle + beam_num * angular_resolution;
@@ -836,7 +831,6 @@ public:
                 }
                 catch (...) {
                         data_ = nullptr;
-                        std::cout << "error in initing datapointer and coordinate converter" << std::endl;
                         width_ = 0;
                         height_ = 0;
                         width_step_ = 0;
@@ -1085,8 +1079,6 @@ public:
                 OccupancyGrid *pOccupancyGrid = new OccupancyGrid(width, height, offset, resolution);
                 pOccupancyGrid->setMinPassThrough(min_pass_through);
                 pOccupancyGrid->setOccupancyThreshold(occupancy_threshold);
-                std::cout << "width of occgrid: " << pOccupancyGrid->getWidth() << std::endl;
-                std::cout << "height of occgrid: " << pOccupancyGrid->getHeight() << std::endl;
                 pOccupancyGrid->createFromScans(scans);
 
                 return pOccupancyGrid;
@@ -1257,8 +1249,6 @@ public:
                 // draw lines from scan position to all point readings
                 int point_index = 0;
 
-                std::cout << "ok4" << std::endl;
-
                 for (const auto &point_iter : point_readings)  {
                         Eigen::Vector2d point = point_iter;
                         double range_reading = scan->getRangeReadings()[point_index];
@@ -1286,8 +1276,6 @@ public:
                         point_index++;
                 }
 
-                std::cout << "ok5" << std::endl;
-
                 return is_all_in_map;
         }
 
@@ -1301,14 +1289,10 @@ public:
                 // clear grid
                 clear();
 
-                std::cout << "ok6" << std::endl;
-
                 // set occupancy status of cells
                 uint8_t *data_ptr = getDataPointer();
                 uint32_t *cell_pass_cnt_ptr = cell_pass_cnt_->getDataPointer();
                 uint32_t *cell_hit_cnt_ptr = cell_hit_cnt_->getDataPointer();
-
-                std::cout << "ok7" << std::endl;
 
                 uint32_t n_bytes = getDataSize();
                 for (uint32_t i = 0; i < n_bytes; i++, data_ptr++, cell_pass_cnt_ptr++, cell_hit_cnt_ptr++) {
@@ -1699,6 +1683,24 @@ public:
         inline void addEdge(std::unique_ptr<Edge<T>> edge)
         {
                 edges_.push_back(std::move(edge));
+        }
+
+        /**
+         * Gets the edges of this graph
+         * @return graph edges
+         */
+        inline const std::vector<std::unique_ptr<Edge<T>>> &getEdges() const
+        {
+                return edges_;
+        }
+
+        /**
+         * Gets the vertices of this graph
+         * @return graph vertices
+         */
+        inline const VertexMap &getVertices() const
+        {
+                return vertices_;
         }
 
 }; // Graph
@@ -2434,6 +2436,15 @@ public:
         }
 
         /**
+         * Get graph stored
+         */
+        virtual std::unordered_map<int, Eigen::Vector3d> *getGraph()
+        {
+                std::cout << "getGraph method not implemented for this solver type. Graph visualization unavailable." << std::endl;
+                return nullptr;
+        }
+
+        /**
          * Get corrected poses after optimization
          * @return optimized poses
          */
@@ -2442,6 +2453,19 @@ public:
 }; // ScanSolver
 
 ///////////////////////////////////////////////////////////////////////
+struct LocalizationScanVertex
+{
+        LocalizationScanVertex() {}
+        LocalizationScanVertex(const LocalizationScanVertex &obj)
+        {
+                scan = obj.scan;
+                vertex = obj.vertex;
+        }
+        LocalizedRangeScan *scan;
+        Vertex<LocalizedRangeScan> *vertex;
+};
+
+typedef std::queue<LocalizationScanVertex> LocalizationScanVertices;
 
 class Mapper 
 {
@@ -2594,6 +2618,8 @@ protected:
         std::unique_ptr<ScanMatcher> scan_matcher_;
         std::unique_ptr<MapperGraph> graph_;
         std::unique_ptr<ScanSolver> scan_optimizer_;
+        LocalizationScanVertices localization_scan_vertices_;
+
 protected:
         bool hasMovedEnough(LocalizedRangeScan *scan, LocalizedRangeScan *last_scan) const;
 
@@ -2646,6 +2672,30 @@ public:
                 scan_optimizer_ = std::move(scan_optimizer);
         }
 
+        MapperGraph *getGraph() const
+        {
+                return graph_.get();
+        }
+
+        const LocalizationScanVertices &getLocalizationVertices()
+        {
+                return localization_scan_vertices_;
+        }
+
+        ScanSolver *getScanSolver()
+        {
+                return scan_optimizer_.get();
+        }
+
+        /**
+         * Gets the device manager
+         * @return device manager
+         */
+        inline ScanManager *getScanManager() const
+        {
+                return scan_manager_.get();
+        }
+
         /**
          * Process a localized range scan for incorporation into the map.  The scan must
          * be identified with a range finder device.  Once added to a map, the corrected pose information in the
@@ -2671,11 +2721,8 @@ public:
 
                 if (scan_manager_ != nullptr)
                 {
-                        std::cout << "about to get scans" << std::endl;
                         all_scans = scan_manager_->getAllScans();
                 }
-
-                std::cout << "got " << all_scans.size() << " scans" << std::endl;
 
                 return all_scans;
         }
@@ -2889,9 +2936,6 @@ public:
                 pose = Pose2(tmp_pose.transform.translation.x,
                              tmp_pose.transform.translation.y, 
                              yaw);
-                std::cout << "x: " << tmp_pose.transform.translation.x
-                        << " y: " << tmp_pose.transform.translation.y 
-                        << " heading: " << yaw << std::endl;
 
                 return true;
         }

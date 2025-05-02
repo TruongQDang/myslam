@@ -18,6 +18,7 @@ find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(message_filters REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 
 find_package(Eigen3 REQUIRED)
 find_package(Boost REQUIRED thread)
@@ -37,6 +38,7 @@ set(ros_dependencies
   tf2_sensor_msgs
   geometry_msgs
   nav_msgs
+  visualization_msgs
 )
 
 # build all libraries as shared libraries
@@ -62,7 +64,7 @@ add_library(mapper_utils src/mapper_utils.cpp)
 ament_target_dependencies(mapper_utils ${ros_dependencies})
 target_link_libraries(mapper_utils ${Boost_LIBRARIES} TBB::tbb)
 
-add_library(myslam src/myslam.cpp)
+add_library(myslam src/myslam.cpp src/loop_closure_assistant.cpp)
 target_link_libraries(myslam mapper_utils ceres_solver_plugin)
 add_executable(myslam_node src/myslam_node.cpp)
 target_link_libraries(myslam_node myslam)

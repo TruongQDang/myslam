@@ -21,6 +21,7 @@
 #include "myslam/myslam_types.hpp"
 #include "myslam/mapper_utils.hpp"
 #include "myslam/ceres_solver.hpp"
+#include "myslam/loop_closure_assistant.hpp"
 
 
 
@@ -97,12 +98,13 @@ protected:
         double yaw_covariance_scale_;
         bool first_measurement_;
 
-        // // helpers
+        // helpers
         std::unique_ptr<mapper_utils::PoseHelper> pose_helper_;
         std::unique_ptr<mapper_utils::Mapper> mapper_;
         std::unique_ptr<mapper_utils::LaserRangeFinder> laser_;
+        std::unique_ptr<loop_closure_assistant::LoopClosureAssistant> closure_assistant_;
 
-        // // internal state
+        // internal state
         std::vector<std::unique_ptr<boost::thread>> threads_;
         tf2::Transform map_to_odom_;
         boost::mutex map_to_odom_mutex_, mapper_mutex_, pose_mutex_;

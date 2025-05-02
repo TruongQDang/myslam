@@ -4,7 +4,7 @@
 namespace mapper_utils
 {
 // enable for verbose debug
-#define MYSLAM_DEBUG
+// #define MYSLAM_DEBUG
 #define MAX_VARIANCE 500.0
 #define DISTANCE_PENALTY_GAIN 0.2
 #define ANGLE_PENALTY_GAIN 0.2
@@ -118,10 +118,8 @@ double ScanMatcher::matchScan(
         correlation_grid_->getCoordinateConverter()->setOffset(offset);
 
         ///////////////////////////////////////
-        std::cout << "about to enter addScans - setting up correlation grid" << std::endl;
         // set up correlation grid
         addScans(base_scans, scan_pose.getPosition());
-        std::cout << "finish addScans - setting up correlation grid" << std::endl;
 
         // compute how far to search in each direction
         Vector2d search_dimensions(
@@ -137,8 +135,6 @@ double ScanMatcher::matchScan(
                 2 * correlation_grid_->getResolution());
 
         // actual scan-matching
-
-        std::cout << "about to enter coarse correlateScan" << std::endl;
         double best_response = correlateScan(
                 scan, 
                 scan_pose, 
@@ -191,7 +187,6 @@ double ScanMatcher::matchScan(
                 Vector2d fine_search_resolution(
                         correlation_grid_->getResolution(),
                         correlation_grid_->getResolution());
-                std::cout << "about to enter fine correlateScan" << std::endl;
                 best_response = correlateScan(
                         scan,
                         mean,
@@ -270,9 +265,7 @@ void ScanMatcher::addScan(
 
                 // smear_grid
                 if (do_smear == true) {
-                        std::cout << "about to enter smear point" << std::endl;
                         correlation_grid_->smearPoint(grid_point);
-                        std::cout << "finish smear point" << std::endl;
                 }
         }
 }
@@ -487,11 +480,9 @@ double ScanMatcher::correlateScan(
         #endif
 
         if (!doing_fine_match) {
-                std::cout << "about to enter positional covariance" << std::endl;
                 computePositionalCovariance(average_pose, best_response, search_center, search_space_offset,
                                                 search_space_resolution, search_angle_resolution, covariance);
         } else {
-                std::cout << "about to enter angular covariance" << std::endl;
                 computeAngularCovariance(average_pose, best_response, search_center,
                                                 search_angle_offset, search_angle_resolution, covariance);
         }
@@ -875,7 +866,6 @@ bool MapperGraph::tryCloseLoop(LocalizedRangeScan * scan)
         uint32_t scanIndex = 0;
 
         LocalizedRangeScanVector candidateChain = FindPossibleLoopClosure(scan, scanIndex);
-        std::cout << "done FindPossibleLoopClosure1" << std::endl;
 
         while (!candidateChain.empty())
         {
@@ -924,6 +914,11 @@ bool MapperGraph::tryCloseLoop(LocalizedRangeScan * scan)
 
                 candidateChain = FindPossibleLoopClosure(scan, scanIndex);
         }
+        if (loopClosed) {
+                std::cout << "loop closed successful" << std::endl;
+        } else {
+                std::cout << "loop close failed" << std::endl;
+        }
 
         return loopClosed;
 }
@@ -954,13 +949,11 @@ LocalizedRangeScanVector MapperGraph::FindPossibleLoopClosure(
         LocalizedRangeScanVector chain; // return value
 
         Pose2 pose = scan->getReferencePose(mapper_->use_scan_barycenter_);
-        std::cout << "done getReferencePose1 in LoopClosure" << std::endl;
 
         // possible loop closure chain should not include close scans that have a
         // path of links to the scan of interest
         const LocalizedRangeScanVector nearLinkedScans =
                 findNearLinkedScans(scan, mapper_->loop_search_maximum_distance_);
-        std::cout << "done findNearLinkedScans in LoopClosure" << std::endl;
 
         uint32_t nScans =
             static_cast<uint32_t>(mapper_->scan_manager_->getAllScans().size());
@@ -1599,7 +1592,7 @@ bool Mapper::process(LocalizedRangeScan * scan, Eigen::Matrix3d * covariance)
                 // }
 
                 Eigen::Matrix3d cov = Eigen::Matrix3d::Identity();
-                std::cout << "about to enter matchScan" << std::endl;
+
                 // correct scan (if not first scan)
                 if (last_scan != nullptr) {
                         Pose2 best_pose;
@@ -1614,25 +1607,19 @@ bool Mapper::process(LocalizedRangeScan * scan, Eigen::Matrix3d * covariance)
                         }
                 }
 
-                std::cout << "done matchScan" << std::endl;
-
                 // add scan to buffer and assign id
                 scan_manager_->addScan(scan);
-                std::cout << "done addScan" << std::endl;
-                // // add to graph
-                // graph_->addVertex(scan);
-                // std::cout << "done addVertex" << std::endl;
-                // graph_->addEdges(scan, cov);
-                // std::cout << "done addEdges" << std::endl;
+
+                // add to graph
+                graph_->addVertex(scan);
+
+                graph_->addEdges(scan, cov);
 
                 scan_manager_->addRunningScan(scan);
-                std::cout << "done addRunningScan" << std::endl;
 
-                // // graph_->tryCloseLoop(scan);
-                // // std::cout << "done tryCloseLoop" << std::endl;
+                graph_->tryCloseLoop(scan);
 
                 scan_manager_->setLastScan(scan);
-                std::cout << "done setLastScan" << std::endl;
 
                 return true;
         }

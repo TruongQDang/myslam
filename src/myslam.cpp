@@ -84,6 +84,10 @@ CallbackReturn MySlam::on_configure(const rclcpp_lifecycle::State &)
         tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(shared_from_this());
         pose_helper_ = std::make_unique<mapper_utils::PoseHelper>(tf_.get());
 
+        closure_assistant_ =
+            std::make_unique<loop_closure_assistant::LoopClosureAssistant>(
+                shared_from_this(), mapper_.get(), mapper_->getScanManager());
+
         RCLCPP_INFO(get_logger(), "Configured");
 
         return CallbackReturn::SUCCESS;
@@ -160,6 +164,7 @@ CallbackReturn MySlam::on_cleanup(const rclcpp_lifecycle::State &)
 {
         RCLCPP_INFO(get_logger(), "Cleaning up...");
 
+        closure_assistant_.reset();
         tf_broadcaster_.reset();
         mapper_.reset();
         pose_helper_.reset();
@@ -194,7 +199,8 @@ MySlam::~MySlam()
 
         mapper_.reset();
         pose_helper_.reset();
-       
+        closure_assistant_.reset();
+
         scan_filter_.reset();
         scan_filter_subscriber_.reset();
         map_publisher_.reset();
@@ -406,14 +412,14 @@ void MySlam::publishVisualizations()
         map_update_interval = this->get_parameter("map_update_interval").as_double();
         rclcpp::Rate r(1.0 / map_update_interval);
 
-        try {
-                while (rclcpp::ok()) {
-                        boost::this_thread::interruption_point();
-                        updateMap();
-                        r.sleep();
+        while (rclcpp::ok()) {
+                boost::this_thread::interruption_point();
+                updateMap();
+                {
+                        boost::mutex::scoped_lock lock(mapper_mutex_);
+                        closure_assistant_->publishGraph();
                 }
-        } catch (const std::exception &e) {
-                RCLCPP_ERROR(get_logger(), "Exception in thread: %s", e.what());
+                r.sleep();
         }
 }
 

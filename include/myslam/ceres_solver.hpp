@@ -47,6 +47,8 @@ public:
         // Adds a constraint to the solver
         virtual void addConstraint(mapper_utils::Edge<mapper_utils::LocalizedRangeScan> *pEdge);
 
+        std::unordered_map<int, Eigen::Vector3d> *getGraph();
+
         // Get corrected poses after optimization
         virtual const mapper_utils::ScanSolver::IdPoseVector &getCorrections() const;
 }; // CeresSolver

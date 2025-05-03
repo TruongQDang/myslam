@@ -19,7 +19,7 @@ LoopClosureAssistant::LoopClosureAssistant(
         marker_publisher_ = node->template create_publisher<visualization_msgs::msg::MarkerArray>(
             "myslam/graph_visualization", rclcpp::QoS(1));
             
-        // map_frame_ = node->get_parameter("map_frame").as_string();
+        //map_frame_ = node->get_parameter("map_frame").as_string();
         map_frame_ = std::string("map");
 }
 
@@ -45,8 +45,7 @@ void LoopClosureAssistant::publishGraph()
                 return;
         }
 
-        // RCLCPP_DEBUG(logger_, "Graph size: %zu", graph->size());
-        RCLCPP_INFO(logger_, "Graph size: %zu", graph->size());
+        RCLCPP_DEBUG(logger_, "Graph size: %zu", graph->size());
 
         const auto &vertices = mapper_->getGraph()->getVertices();
         const auto &edges = mapper_->getGraph()->getEdges();

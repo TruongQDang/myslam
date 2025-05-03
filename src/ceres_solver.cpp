@@ -29,10 +29,6 @@ void CeresSolver::configure(rclcpp_lifecycle::LifecycleNode::SharedPtr node)
         }
         solver_type = node->get_parameter("ceres_linear_solver").as_string();
 
-        RCLCPP_INFO(
-            node->get_logger(),
-            "still fine3");
-
         if (!node->has_parameter("ceres_preconditioner"))
         {
                 node->declare_parameter(
@@ -103,9 +99,6 @@ void CeresSolver::configure(rclcpp_lifecycle::LifecycleNode::SharedPtr node)
         // choose linear solver default CHOL
         options_.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
 
-        RCLCPP_INFO(
-            node->get_logger(),
-            "still fine5");
         if (solver_type == "SPARSE_SCHUR")
         {
                 RCLCPP_INFO(
@@ -250,13 +243,11 @@ void CeresSolver::compute()
 
         ceres::Solver::Summary summary;
         ceres::Solve(options_, problem_, &summary);
-        if (debug_logging_)
-        {
+        if (debug_logging_) {
                 std::cout << summary.FullReport() << '\n';
         }
 
-        if (!summary.IsSolutionUsable())
-        {
+        if (!summary.IsSolutionUsable()) {
                 RCLCPP_WARN(
                     logger_, "CeresSolver: "
                              "Ceres could not find a usable solution to optimize.");
@@ -264,15 +255,13 @@ void CeresSolver::compute()
         }
 
         // store corrected poses
-        if (!corrections_.empty())
-        {
+        if (!corrections_.empty()) {
                 corrections_.clear();
         }
         corrections_.reserve(nodes_->size());
         Pose2 pose;
         ConstGraphIterator iter = nodes_->begin();
-        for (iter; iter != nodes_->end(); ++iter)
-        {
+        for (iter; iter != nodes_->end(); ++iter) {
                 pose.setX(iter->second(0));
                 pose.setY(iter->second(1));
                 pose.setHeading(iter->second(2));
@@ -285,8 +274,7 @@ void CeresSolver::addNode(mapper_utils::Vertex<mapper_utils::LocalizedRangeScan>
 /*****************************************************************************/
 {
         // store nodes
-        if (!pVertex)
-        {
+        if (!pVertex) {
                 return;
         }
 
@@ -310,8 +298,7 @@ void CeresSolver::addConstraint(mapper_utils::Edge<mapper_utils::LocalizedRangeS
         // get IDs in graph for this edge
         boost::mutex::scoped_lock lock(nodes_mutex_);
 
-        if (!pEdge)
-        {
+        if (!pEdge) {
                 return;
         }
 
@@ -321,8 +308,8 @@ void CeresSolver::addConstraint(mapper_utils::Edge<mapper_utils::LocalizedRangeS
         GraphIterator node2it = nodes_->find(node2);
 
         if (node1it == nodes_->end() ||
-            node2it == nodes_->end() || node1it == node2it)
-        {
+            node2it == nodes_->end() || 
+            node1it == node2it) {
                 RCLCPP_WARN(
                     logger_,
                     "CeresSolver: Failed to add constraint, could not find nodes.");

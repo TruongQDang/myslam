@@ -157,7 +157,7 @@ public:
         }
 
         /**
-         * @return heading in radians 
+         * @return heading in radians (-pi;pi]
          */
         inline double getHeading() const
         {

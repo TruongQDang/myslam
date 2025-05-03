@@ -831,7 +831,7 @@ Edge<LocalizedRangeScan> *MapperGraph::addEdge(
         return edge_ptr;
 }
 
-void MapperGraph::addEdges(LocalizedRangeScan * scan, const Matrix3d &covariance)
+void MapperGraph::addEdges(LocalizedRangeScan *scan, const Matrix3d &covariance)
 {
         ScanManager *scan_manager = mapper_->scan_manager_.get();
 
@@ -859,7 +859,7 @@ void MapperGraph::addEdges(LocalizedRangeScan * scan, const Matrix3d &covariance
         }
 }
 
-bool MapperGraph::tryCloseLoop(LocalizedRangeScan * scan)
+bool MapperGraph::tryCloseLoop(LocalizedRangeScan *scan)
 {
         bool loopClosed = false;
 
@@ -867,12 +867,16 @@ bool MapperGraph::tryCloseLoop(LocalizedRangeScan * scan)
 
         LocalizedRangeScanVector candidateChain = FindPossibleLoopClosure(scan, scanIndex);
 
-        while (!candidateChain.empty())
-        {
+        while (!candidateChain.empty()) {
                 Pose2 bestPose;
                 Matrix3d covariance;
-                double coarseResponse = loop_scan_matcher_->matchScan(scan, candidateChain,
-                                                                         bestPose, covariance, false, false);
+                double coarseResponse = loop_scan_matcher_->matchScan(
+                        scan, 
+                        candidateChain,                                                 
+                        bestPose, 
+                        covariance, 
+                        false, 
+                        false);
 
                 std::stringstream stream;
                 stream << "COARSE RESPONSE: " << coarseResponse << " (> " << mapper_->loop_match_minimum_response_coarse_ << ")" << std::endl;
@@ -880,26 +884,25 @@ bool MapperGraph::tryCloseLoop(LocalizedRangeScan * scan)
 
                 if ((coarseResponse > mapper_->loop_match_minimum_response_coarse_) &&
                     (covariance(0, 0) < mapper_->loop_match_maximum_variance_coarse_) &&
-                    (covariance(1, 1) < mapper_->loop_match_maximum_variance_coarse_))
-                {
+                    (covariance(1, 1) < mapper_->loop_match_maximum_variance_coarse_)) {
                         LocalizedRangeScan tmpScan(scan->getLaserRangeFinder(), scan->getRangeReadingsVector());
                         tmpScan.setScanId(scan->getScanId());
                         tmpScan.setTime(scan->getTime());
                         tmpScan.setCorrectedPose(scan->getCorrectedPose());
                         tmpScan.setSensorPose(bestPose); // This also updates OdometricPose.
-                        double fineResponse = mapper_->scan_matcher_->matchScan(&tmpScan,
-                                                                                                candidateChain,
-                                                                                                bestPose, covariance, false);
+                        double fineResponse = mapper_->scan_matcher_->matchScan(
+                                &tmpScan,
+                                candidateChain,
+                                bestPose, 
+                                covariance, 
+                                false);
 
                         std::stringstream stream1;
                         stream1 << "FINE RESPONSE: " << fineResponse << " (>" << mapper_->loop_match_minimum_response_fine_ << ")" << std::endl;
 
-                        if (fineResponse < mapper_->loop_match_minimum_response_fine_)
-                        {
+                        if (fineResponse < mapper_->loop_match_minimum_response_fine_) {
                                 // mapper_->FireLoopClosureCheck("REJECTED!");
-                        }
-                        else
-                        {
+                        } else {
                                 // mapper_->FireBeginLoopClosure("Closing loop...");
 
                                 scan->setSensorPose(bestPose);
@@ -909,15 +912,12 @@ bool MapperGraph::tryCloseLoop(LocalizedRangeScan * scan)
                                 // mapper_->FireEndLoopClosure("Loop closed!");
 
                                 loopClosed = true;
+
+                                std::cout << "loop closed" << std::endl;
                         }
                 }
 
                 candidateChain = FindPossibleLoopClosure(scan, scanIndex);
-        }
-        if (loopClosed) {
-                std::cout << "loop closed successful" << std::endl;
-        } else {
-                std::cout << "loop close failed" << std::endl;
         }
 
         return loopClosed;
@@ -956,7 +956,7 @@ LocalizedRangeScanVector MapperGraph::FindPossibleLoopClosure(
                 findNearLinkedScans(scan, mapper_->loop_search_maximum_distance_);
 
         uint32_t nScans =
-            static_cast<uint32_t>(mapper_->scan_manager_->getAllScans().size());
+                static_cast<uint32_t>(mapper_->scan_manager_->getAllScans().size());
         for (; rStartNum < nScans; rStartNum++) {
                 LocalizedRangeScan *pCandidateScan = mapper_->scan_manager_->getScan(rStartNum);
                 if (pCandidateScan == nullptr) {
@@ -964,31 +964,24 @@ LocalizedRangeScanVector MapperGraph::FindPossibleLoopClosure(
                 }
 
                 Pose2 candidateScanPose = pCandidateScan->getReferencePose(
-                    mapper_->use_scan_barycenter_);
+                        mapper_->use_scan_barycenter_);
 
                 double squaredDistance = candidateScanPose.getSquaredDistance(pose);
                 if (squaredDistance <
                     math::Square(mapper_->loop_search_maximum_distance_) + math::TOLERANCE) {
                         // a linked scan cannot be in the chain
-                        if (find(nearLinkedScans.begin(), nearLinkedScans.end(),
-                                 pCandidateScan) != nearLinkedScans.end())
-                        {
+                        if (std::find(nearLinkedScans.begin(), 
+                            nearLinkedScans.end(),
+                            pCandidateScan) != nearLinkedScans.end()) {
                                 chain.clear();
-                        }
-                        else
-                        {
+                        } else {
                                 chain.push_back(pCandidateScan);
                         }
-                }
-                else
-                {
+                } else {
                         // return chain if it is long "enough"
-                        if (chain.size() >= mapper_->loop_match_minimum_chain_size_)
-                        {
+                        if (chain.size() >= mapper_->loop_match_minimum_chain_size_) {
                                 return chain;
-                        }
-                        else
-                        {
+                        } else {
                                 chain.clear();
                         }
                 }
@@ -1049,8 +1042,7 @@ void MapperGraph::linkChainToScan(
 
         double squared_distance = pose.getSquaredDistance(closest_scan_pose);
         if (squared_distance <
-                math::Square(mapper_->link_scan_maximum_distance_) + math::TOLERANCE)
-        {
+            math::Square(mapper_->link_scan_maximum_distance_) + math::TOLERANCE) {
                 linkScans(closest_scan, scan, mean, covariance);
         }
 }
@@ -1617,7 +1609,7 @@ bool Mapper::process(LocalizedRangeScan * scan, Eigen::Matrix3d * covariance)
 
                 scan_manager_->addRunningScan(scan);
 
-                graph_->tryCloseLoop(scan);
+                // graph_->tryCloseLoop(scan);
 
                 scan_manager_->setLastScan(scan);
 

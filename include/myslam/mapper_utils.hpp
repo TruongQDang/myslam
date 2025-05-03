@@ -1486,7 +1486,7 @@ public:
                 pose2_ = pose2;
 
                 // transform second pose into the coordinate system of the first pose
-                Pose2::transformPose(pose1.inverse(), pose2);
+                pose_difference_ = Pose2::transformPose(pose1.inverse(), pose2);
 
                 // transform covariance into reference of first pose
                 Matrix3d rotation_matrix = Eigen::AngleAxisd(
@@ -2196,6 +2196,7 @@ public:
 }; // Visitor<T>
 
 ///////////////////////////////////////////////////////////////////////
+
 class NearScanVisitor : public Visitor<LocalizedRangeScan>
 {
 protected:

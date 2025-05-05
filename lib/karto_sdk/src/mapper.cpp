@@ -1,7 +1,6 @@
-#include "myslam/mapper_utils.hpp"
-#include <cmath>
+#include "karto_sdk/mapper.hpp"
 
-namespace mapper_utils
+namespace karto
 {
 // enable for verbose debug
 // #define MYSLAM_DEBUG
@@ -9,14 +8,6 @@ namespace mapper_utils
 #define DISTANCE_PENALTY_GAIN 0.2
 #define ANGLE_PENALTY_GAIN 0.2
 
-void CellUpdater::operator()(uint32_t index)
-{
-        uint8_t *data_ptr = occupancy_grid_->getDataPointer();
-        uint32_t *cell_pass_cnt_ptr = occupancy_grid_->cell_pass_cnt_->getDataPointer();
-        uint32_t *cell_hit_cnt_ptr = occupancy_grid_->cell_hit_cnt_->getDataPointer();
-
-        occupancy_grid_->updateCell(&data_ptr[index], cell_pass_cnt_ptr[index], cell_hit_cnt_ptr[index]);
-}
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -256,12 +247,12 @@ void ScanMatcher::addScan(
 
                 // set grid cell as occupied
                 if (correlation_grid_->getDataPointer()[grid_index] 
-                        == static_cast<uint8_t>(GridStates::OCCUPIED)) {
+                        == GRIDSTATES_OCCUPIED) {
                                 // value already set
                                 continue;
                 }
 
-                correlation_grid_->getDataPointer()[grid_index] = static_cast<uint8_t>(GridStates::OCCUPIED);
+                correlation_grid_->getDataPointer()[grid_index] = GRIDSTATES_OCCUPIED;
 
                 // smear_grid
                 if (do_smear == true) {
@@ -581,7 +572,7 @@ double ScanMatcher::getResponse(uint32_t angle_index, int32_t grid_position_inde
                 // ignore points that fall off the grid
                 int32_t pointGridIndex = grid_position_index + pAngleIndexPointer[i];
                 if (!math::IsUpTo(pointGridIndex, correlation_grid_->getDataSize()) ||
-                        pAngleIndexPointer[i] == math::INVALID_SCAN) {
+                        pAngleIndexPointer[i] == INVALID_SCAN) {
                         continue;
                 }
 
@@ -590,7 +581,7 @@ double ScanMatcher::getResponse(uint32_t angle_index, int32_t grid_position_inde
         }
 
         // normalize response
-        response /= (nPoints * static_cast<uint8_t>(GridStates::OCCUPIED));
+        response /= (nPoints * GRIDSTATES_OCCUPIED);
         assert(fabs(response) <= 1.0);
 
         return response;
@@ -619,7 +610,7 @@ void ScanMatcher::computePositionalCovariance(
         covariance.Identity();
 
         // if best response is vary small return max variance
-        if (best_response < math::TOLERANCE)
+        if (best_response < KT_TOLERANCE)
         {
                 covariance(0, 0) = MAX_VARIANCE;                            // XX
                 covariance(1, 1) = MAX_VARIANCE;                            // YY
@@ -670,7 +661,7 @@ void ScanMatcher::computePositionalCovariance(
                 }
         }
 
-        if (norm > math::TOLERANCE) {
+        if (norm > KT_TOLERANCE) {
                 double variance_xx = accumulated_variance_xx / norm;
                 double variance_xy = accumulated_variance_xy / norm;
                 double variance_yy = accumulated_variance_yy / norm;
@@ -751,8 +742,8 @@ void ScanMatcher::computeAngularCovariance(
         }
         assert(math::DoubleEqual(angle, search_center.getHeading() + search_angle_offset));
 
-        if (norm > math::TOLERANCE) {
-                if (accumulated_variance_thth < math::TOLERANCE)
+        if (norm > KT_TOLERANCE) {
+                if (accumulated_variance_thth < KT_TOLERANCE)
                 {
                         accumulated_variance_thth = math::Square(search_angle_resolution);
                 }
@@ -968,7 +959,7 @@ LocalizedRangeScanVector MapperGraph::FindPossibleLoopClosure(
 
                 double squaredDistance = candidateScanPose.getSquaredDistance(pose);
                 if (squaredDistance <
-                    math::Square(mapper_->loop_search_maximum_distance_) + math::TOLERANCE) {
+                    math::Square(mapper_->loop_search_maximum_distance_) + KT_TOLERANCE) {
                         // a linked scan cannot be in the chain
                         if (std::find(nearLinkedScans.begin(), 
                             nearLinkedScans.end(),
@@ -1042,7 +1033,7 @@ void MapperGraph::linkChainToScan(
 
         double squared_distance = pose.getSquaredDistance(closest_scan_pose);
         if (squared_distance <
-            math::Square(mapper_->link_scan_maximum_distance_) + math::TOLERANCE) {
+            math::Square(mapper_->link_scan_maximum_distance_) + KT_TOLERANCE) {
                 linkScans(closest_scan, scan, mean, covariance);
         }
 }
@@ -1066,7 +1057,7 @@ void MapperGraph::linkNearChains(
                         mean,
                         covariance, 
                         false);
-                if (response > mapper_->link_match_minimum_response_fine_ - math::TOLERANCE) {
+                if (response > mapper_->link_match_minimum_response_fine_ - KT_TOLERANCE) {
                         means.push_back(mean);
                         covariances.push_back(covariance);
                         linkChainToScan(scan_chain, scan, mean, covariance);
@@ -1125,7 +1116,7 @@ std::vector<LocalizedRangeScanVector> MapperGraph::findNearChains(LocalizedRange
                         double squaredDistance = scan_pose.getSquaredDistance(candidatePose);
 
                         if (squaredDistance <
-                            math::Square(mapper_->link_scan_maximum_distance_) + math::TOLERANCE)
+                            math::Square(mapper_->link_scan_maximum_distance_) + KT_TOLERANCE)
                         {
                                 chain.push_front(pCandidateScan);
                                 processed.push_back(pCandidateScan);
@@ -1162,7 +1153,7 @@ std::vector<LocalizedRangeScanVector> MapperGraph::findNearChains(LocalizedRange
                             scan_pose.getSquaredDistance(candidatePose);
 
                         if (squaredDistance <
-                            math::Square(mapper_->link_scan_maximum_distance_) + math::TOLERANCE)
+                            math::Square(mapper_->link_scan_maximum_distance_) + KT_TOLERANCE)
                         {
                                 chain.push_back(pCandidateScan);
                                 processed.push_back(pCandidateScan);
@@ -1646,7 +1637,7 @@ bool Mapper::hasMovedEnough(LocalizedRangeScan *scan, LocalizedRangeScan *last_s
 
         // test if we have moved enough
         double squaredTravelDistance = last_scanner_pose.getSquaredDistance(scanner_pose);
-        if (squaredTravelDistance >= math::Square(minimum_travel_distance_ - math::TOLERANCE))
+        if (squaredTravelDistance >= math::Square(minimum_travel_distance_ - KT_TOLERANCE))
         {
                 return true;
         }

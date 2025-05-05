@@ -1,4 +1,4 @@
-#include "myslam/ceres_solver.hpp"
+#include "ceres_solver.hpp"
 
 namespace solver_plugins
 {

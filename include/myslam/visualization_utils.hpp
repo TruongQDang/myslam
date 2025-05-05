@@ -36,6 +36,48 @@ namespace vis_utils
 
                 return marker;
         }
+
+        inline void toNavMap(
+            const OccupancyGrid *occ_grid,
+            nav_msgs::msg::OccupancyGrid &map)
+        {
+                // Translate to ROS format
+                int32_t width = occ_grid->getWidth();
+                int32_t height = occ_grid->getHeight();
+                Eigen::Vector2d offset = occ_grid->getCoordinateConverter()->getOffset();
+
+                if (map.info.width != (unsigned int)width ||
+                    map.info.height != (unsigned int)height ||
+                    map.info.origin.position.x != offset.x() ||
+                    map.info.origin.position.y != offset.y())
+                {
+                        map.info.origin.position.x = offset.x();
+                        map.info.origin.position.y = offset.y();
+                        map.info.width = width;
+                        map.info.height = height;
+                        map.data.resize(map.info.width * map.info.height);
+                }
+
+                for (int32_t y = 0; y < height; y++)
+                {
+                        for (int32_t x = 0; x < width; x++)
+                        {
+                                uint8_t value = occ_grid->getValue(Eigen::Matrix<int32_t, 2, 1>(x, y));
+                                switch (value)
+                                {
+                                case static_cast<uint8_t>(GridStates::UNKNOWN):
+                                        map.data[MAP_IDX(map.info.width, x, y)] = -1;
+                                        break;
+                                case static_cast<uint8_t>(GridStates::OCCUPIED):
+                                        map.data[MAP_IDX(map.info.width, x, y)] = 100;
+                                        break;
+                                case static_cast<uint8_t>(GridStates::FREE):
+                                        map.data[MAP_IDX(map.info.width, x, y)] = 0;
+                                        break;
+                                }
+                        }
+                }
+        }
 } // namespace vis_utils
 
 #endif // VISUALIZATION_UTILS_HPP

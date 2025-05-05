@@ -1,9 +1,9 @@
 #ifndef CERES_SOLVER_HPP_
 #define CERES_SOLVER_HPP_
 
-#include "myslam/myslam_types.hpp"
-#include "myslam/mapper_utils.hpp"
-#include "myslam/ceres_utils.hpp"
+#include "karto_sdk/myslam_types.hpp"
+#include "karto_sdk/mapper_utils.hpp"
+#include "ceres_utils.hpp"
 
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"

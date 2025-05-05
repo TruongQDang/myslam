@@ -1,4 +1,5 @@
 #include "myslam/myslam.hpp"
+#include "solvers/ceres_solver.hpp"
 
 namespace myslam
 {

@@ -20,7 +20,6 @@
 
 #include "myslam/myslam_types.hpp"
 #include "myslam/mapper_utils.hpp"
-#include "myslam/ceres_solver.hpp"
 #include "myslam/loop_closure_assistant.hpp"
 
 

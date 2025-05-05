@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.8)
 project(myslam)
 
-set(CMAKE_BUILD_TYPE Release) #None, Debug, Release, RelWithDebInfo, MinSizeRel
+set(CMAKE_BUILD_TYPE Debug) #None, Debug, Release, RelWithDebInfo, MinSizeRel
 if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 17)
 endif()
@@ -58,33 +58,31 @@ include_directories(include lib/karto_sdk/include
                             ${TBB_INCLUDE_DIRS}
                             ${CERES_INCLUDES})
 
-# #### Ceres Plugin
-# add_library(ceres_solver_plugin solvers/ceres_solver.cpp)
-# ament_target_dependencies(ceres_solver_plugin ${ros_dependencies})
-# target_link_libraries(ceres_solver_plugin ${CERES_LIBRARIES}
-#                                           ${Boost_LIBRARIES})
+#### Ceres Plugin
+add_library(ceres_solver_plugin solvers/ceres_solver.cpp)
+ament_target_dependencies(ceres_solver_plugin ${ros_dependencies})
+target_link_libraries(ceres_solver_plugin ${CERES_LIBRARIES}
+                                          ${Boost_LIBRARIES})
 
-# #### Tool lib for mapping
-
-# #### Mapping executibles
-# add_library(myslam src/myslam.cpp src/loop_closure_assistant.cpp)
-# ament_target_dependencies(myslam
-#                           ${dependencies})
-# target_link_libraries(myslam karto_myslam 
-#                              ceres_solver_plugin 
-#                              ${Boost_LIBRARIES})
-# add_executable(myslam_node src/myslam_node.cpp)
-# target_link_libraries(myslam_node myslam)
+#### Mapping executibles
+add_library(myslam src/myslam.cpp src/loop_closure_assistant.cpp)
+ament_target_dependencies(myslam
+                          ${ros_dependencies})
+target_link_libraries(myslam karto_myslam 
+                             ceres_solver_plugin 
+                             ${Boost_LIBRARIES})
+add_executable(myslam_node src/myslam_node.cpp)
+target_link_libraries(myslam_node myslam)
 
 
-# #### Install
-# install(TARGETS myslam_node
-#                 ${libraries}
-#         LIBRARY DESTINATION lib
-#         RUNTIME DESTINATION lib/${PROJECT_NAME}
-# )
+#### Install
+install(TARGETS myslam_node
+                ${libraries}
+        LIBRARY DESTINATION lib
+        RUNTIME DESTINATION lib/${PROJECT_NAME}
+)
 
-# install(DIRECTORY launch description worlds config
-#         DESTINATION share/${PROJECT_NAME}/)
+install(DIRECTORY launch description worlds config
+        DESTINATION share/${PROJECT_NAME}/)
 
 ament_package()

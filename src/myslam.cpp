@@ -39,7 +39,7 @@ void MySlam::laserCallback(sensor_msgs::msg::LaserScan::ConstSharedPtr scan)
 {
         // get transform from odom to base
         scan_header_ = scan->header;
-        Pose2 odom_pose;
+        karto::Pose2 odom_pose;
         if (!pose_helper_->getPose(odom_pose, scan->header.stamp, odom_frame_, base_frame_)) {
                 RCLCPP_WARN(get_logger(), "Failed to compute odom pose");
                 return;
@@ -62,7 +62,7 @@ CallbackReturn MySlam::on_configure(const rclcpp_lifecycle::State &)
         RCLCPP_INFO(get_logger(), "Configuring...");
 
         first_measurement_ = true;
-        mapper_ = std::make_unique<mapper_utils::Mapper>();
+        mapper_ = std::make_unique<karto::Mapper>();
         mapper_->configure(shared_from_this());
         setSolver();
 
@@ -83,7 +83,7 @@ CallbackReturn MySlam::on_configure(const rclcpp_lifecycle::State &)
 
         tf_listener_ = std::make_unique<tf2_ros::TransformListener>(*tf_);
         tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(shared_from_this());
-        pose_helper_ = std::make_unique<mapper_utils::PoseHelper>(tf_.get());
+        pose_helper_ = std::make_unique<pose_utils::PoseHelper>(tf_.get());
 
         closure_assistant_ =
             std::make_unique<loop_closure_assistant::LoopClosureAssistant>(
@@ -355,9 +355,7 @@ void MySlam::setROSInterfaces()
 void MySlam::setSolver()
 /*****************************************************************************/
 {
-        RCLCPP_INFO(get_logger(), "still fine1");
         std::unique_ptr<solver_plugins::CeresSolver> solver = std::make_unique<solver_plugins::CeresSolver>();
-        RCLCPP_INFO(get_logger(), "still fine2");
         solver->configure(shared_from_this());
         mapper_->setScanSolver(std::move(solver));
 }
@@ -428,18 +426,16 @@ void MySlam::publishVisualizations()
 bool MySlam::updateMap()
 /*****************************************************************************/
 {
-        if (!map_publisher_ || !map_publisher_->is_activated() || map_publisher_->get_subscription_count() == 0)
-        {
-                RCLCPP_INFO(get_logger(), "stop due to no map_sub");
+        if (!map_publisher_ || !map_publisher_->is_activated() || map_publisher_->get_subscription_count() == 0) {
                 return true;
         }
         boost::mutex::scoped_lock lock(mapper_mutex_);
-        mapper_utils::OccupancyGrid *occ_grid = mapper_->getOccupancyGrid(resolution_);
+        karto::OccupancyGrid *occ_grid = mapper_->getOccupancyGrid(resolution_);
         if (!occ_grid) {
                 return false;
         }
 
-        mapper_utils::toNavMap(occ_grid, map_.map);
+        vis_utils::toNavMap(occ_grid, map_.map);
 
         // publish map as current
         map_.map.header.stamp = scan_header_.stamp;
@@ -456,10 +452,10 @@ bool MySlam::updateMap()
 /*****************************************************************************/
 bool MySlam::shouldProcessScan(
         const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan,
-        const Pose2 &pose)
+        const karto::Pose2 &pose)
 /*****************************************************************************/
 {
-        static Pose2 last_pose;
+        static karto::Pose2 last_pose;
         static rclcpp::Time last_scan_time = rclcpp::Time(0.);
         static double min_dist2 =
                 mapper_->getMinimumTravelDistance() * 
@@ -488,7 +484,7 @@ bool MySlam::shouldProcessScan(
 
         // check if moved enough between scans, within 10% for correction error
         const double dist2 = last_pose.getSquaredDistance(pose);
-        double heading_diff = math::NormalizeAngle(pose.getHeading() - last_pose.getHeading());
+        double heading_diff = karto::math::NormalizeAngle(pose.getHeading() - last_pose.getHeading());
         if (dist2 < 0.8 * min_dist2 && fabs(heading_diff) < 0.9 * min_heading || scan_count < 5) {
                 return false;
         }
@@ -500,12 +496,12 @@ bool MySlam::shouldProcessScan(
 }
 
 /*****************************************************************************/
-mapper_utils::LocalizedRangeScan *MySlam::addScan(
+karto::LocalizedRangeScan *MySlam::addScan(
         const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan,
-        Pose2 &odom_pose)
+        karto::Pose2 &odom_pose)
 /*****************************************************************************/
 {
-        LocalizedRangeScan *range_scan = getLocalizedRangeScan(laser_.get(), scan, odom_pose);
+        karto::LocalizedRangeScan *range_scan = getLocalizedRangeScan(laser_.get(), scan, odom_pose);
 
         // Add the localized range scan to the mapper
         boost::mutex::scoped_lock lock(mapper_mutex_);
@@ -538,8 +534,8 @@ mapper_utils::LocalizedRangeScan *MySlam::addScan(
 
 /*****************************************************************************/
 tf2::Stamped<tf2::Transform> MySlam::setTransformFromPoses(
-        const Pose2 &corrected_pose,
-        const Pose2 &odom_pose, const rclcpp::Time &t,
+        const karto::Pose2 &corrected_pose,
+        const karto::Pose2 &odom_pose, const rclcpp::Time &t,
         const bool &update_reprocessing_transform)
 /*****************************************************************************/
 {
@@ -583,7 +579,7 @@ tf2::Stamped<tf2::Transform> MySlam::setTransformFromPoses(
 
 /*****************************************************************************/
 void MySlam::publishPose(
-        const Pose2 &pose,
+        const karto::Pose2 &pose,
         const Eigen::Matrix3d &cov,
         const rclcpp::Time &t)
 /*****************************************************************************/
@@ -604,21 +600,20 @@ void MySlam::publishPose(
         pose_msg.pose.covariance[35] = cov(2, 2) * yaw_covariance_scale_;     // yaw
 
         pose_publisher_->publish(pose_msg);
-        // RCLCPP_INFO(get_logger(), "publish map_")
 }
 
 /*****************************************************************************/
-LocalizedRangeScan *MySlam::getLocalizedRangeScan(
-        mapper_utils::LaserRangeFinder *laser,
+karto::LocalizedRangeScan *MySlam::getLocalizedRangeScan(
+        karto::LaserRangeFinder *laser,
         const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan,
-        Pose2 &odom_pose)
+        karto::Pose2 &odom_pose)
 /*****************************************************************************/
 {
         // convert vector<float> to vector<double>
-        mapper_utils::RangeReadingsVector readings(scan->ranges.size());
+        karto::RangeReadingsVector readings(scan->ranges.size());
         std::copy(scan->ranges.begin(), scan->ranges.end(), readings.begin());
 
-        LocalizedRangeScan *range_scan = new LocalizedRangeScan(laser, readings);
+        karto::LocalizedRangeScan *range_scan = new karto::LocalizedRangeScan(laser, readings);
         range_scan->setOdometricPose(odom_pose);
         range_scan->setCorrectedPose(odom_pose);
         range_scan->setTime(rclcpp::Time(scan->header.stamp).nanoseconds() / 1.e9);
@@ -630,9 +625,9 @@ LocalizedRangeScan *MySlam::getLocalizedRangeScan(
 void MySlam::makeLaser(const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan)
 /*****************************************************************************/
 {
-        laser_ = std::make_unique<mapper_utils::LaserRangeFinder>();
+        laser_ = std::make_unique<karto::LaserRangeFinder>();
 
-        Pose2 T_robot_laser;
+        karto::Pose2 T_robot_laser;
         pose_helper_->getPose(T_robot_laser, scan->header.stamp, base_frame_, scan->header.frame_id);
 
         double max_laser_range = 25;

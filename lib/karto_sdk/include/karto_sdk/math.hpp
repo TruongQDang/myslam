@@ -117,7 +117,7 @@ inline double NormalizeAngle(double angle)
                 }
         }
 
-        assert(karto::InRange(angle, -KT_PI, KT_PI));
+        assert(InRange(angle, -KT_PI, KT_PI));
 
         return angle;
 }

@@ -195,7 +195,7 @@ double ScanMatcher::matchScan(
         std::cout << "  BEST POSE = " << mean << " BEST RESPONSE = " << best_response << ",  VARIANCE = " << covariance(0, 0) << ", " << covariance(1, 1) << std::endl;
         #endif
 
-        assert(math::InRange(mean.getHeading(), -math::PI, math::PI));
+        assert(math::InRange(mean.getHeading(), -KT_PI, KT_PI));
 
         return best_response;
 }
@@ -489,7 +489,7 @@ double ScanMatcher::correlateScan(
         }
 
         assert(math::InRange(best_response, 0.0, 1.0));
-        assert(math::InRange(mean.getHeading(), -math::PI, math::PI));
+        assert(math::InRange(mean.getHeading(), -KT_PI, KT_PI));
 
         return best_response;
 }
@@ -1555,50 +1555,50 @@ bool Mapper::process(LocalizedRangeScan * scan, Eigen::Matrix3d * covariance)
                         initialize(laser->getRangeThreshold());
                 }
 
-                // get last scan
-                LocalizedRangeScan *last_scan = scan_manager_->getLastScan();
+                // // get last scan
+                // LocalizedRangeScan *last_scan = scan_manager_->getLastScan();
 
-                // update scans corrected pose based on last correction
-                if (last_scan != nullptr) {
-                        Pose2 T_map_odom = Pose2::transformPose(
-                                last_scan->getCorrectedPose(),
-                                last_scan->getOdometricPose().inverse());
-                        scan->setCorrectedPose(
-                                Pose2::transformPose(
-                                        T_map_odom,
-                                        scan->getOdometricPose()));
-                }
-
-                // // test if heading is larger then minimum heading
-                // if (!hasMovedEnough(scan, last_scan)) {
-                //         return false;
+                // // update scans corrected pose based on last correction
+                // if (last_scan != nullptr) {
+                //         Pose2 T_map_odom = Pose2::transformPose(
+                //                 last_scan->getCorrectedPose(),
+                //                 last_scan->getOdometricPose().inverse());
+                //         scan->setCorrectedPose(
+                //                 Pose2::transformPose(
+                //                         T_map_odom,
+                //                         scan->getOdometricPose()));
                 // }
 
-                Eigen::Matrix3d cov = Eigen::Matrix3d::Identity();
+                // // // test if heading is larger then minimum heading
+                // // if (!hasMovedEnough(scan, last_scan)) {
+                // //         return false;
+                // // }
 
-                // correct scan (if not first scan)
-                if (last_scan != nullptr) {
-                        Pose2 best_pose;
-                        scan_matcher_->matchScan(
-                                scan,
-                                scan_manager_->getRunningScans(),
-                                best_pose,
-                                cov);
-                        scan->setSensorPose(best_pose);
-                        if (covariance) {
-                                *covariance = cov;
-                        }
-                }
+                // Eigen::Matrix3d cov = Eigen::Matrix3d::Identity();
+
+                // // correct scan (if not first scan)
+                // if (last_scan != nullptr) {
+                //         Pose2 best_pose;
+                //         scan_matcher_->matchScan(
+                //                 scan,
+                //                 scan_manager_->getRunningScans(),
+                //                 best_pose,
+                //                 cov);
+                //         scan->setSensorPose(best_pose);
+                //         if (covariance) {
+                //                 *covariance = cov;
+                //         }
+                // }
 
                 // add scan to buffer and assign id
                 scan_manager_->addScan(scan);
 
-                // add to graph
-                graph_->addVertex(scan);
+                // // add to graph
+                // graph_->addVertex(scan);
 
-                graph_->addEdges(scan, cov);
+                // graph_->addEdges(scan, cov);
 
-                scan_manager_->addRunningScan(scan);
+                // scan_manager_->addRunningScan(scan);
 
                 // graph_->tryCloseLoop(scan);
 

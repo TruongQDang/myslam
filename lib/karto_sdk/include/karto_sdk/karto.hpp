@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <vector>
+#include <iostream>
 #include <boost/thread.hpp>
 
 #include <Eigen/Geometry>
@@ -25,6 +26,7 @@ enum
 typedef Eigen::Matrix<int32_t, 2, 1> Vector2i;
 typedef Eigen::Vector2d Vector2d;
 typedef Eigen::Matrix3d Matrix3d;
+typedef std::vector<Eigen::Vector2d> PointVectorDouble;
 
 ///////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////
@@ -973,193 +975,7 @@ public:
 };
 
 /////////////////////////////////////////////////////////
-
-//////////////////////////////////////////////////////////////
-
-/**
- * Create lookup tables for point readings at varying angles in grid.
- * For each angle, grid indexes are calculated for each range reading.
- * This is to speed up finding best angle/position for a localized range scan
- *
- * Used heavily in mapper and localizer.
- *
- * In the localizer, this is a huge speed up for calculating possible position.  For each particle,
- * a probability is calculated.  The range scan is the same, but all grid indexes at all possible angles are
- * calculated.  So when calculating the particle probability at a specific angle, the index table is used
- * to look up probability in probability grid!
- *
- */
-template <typename T>
-class GridIndexLookup
-{
-private:
-        Grid<T> *grid_;
-
-        uint32_t capacity_;
-        uint32_t size_;
-
-        std::vector<std::unique_ptr<LookupArray>> lookup_array_;
-
-        // for sanity check
-        std::vector<double> angles_;
-
-public:
-        GridIndexLookup()
-        {
-        }
-
-        GridIndexLookup(Grid<T> *grid) // NOLINT
-            : grid_(grid),
-              capacity_(0),
-              size_(0)
-        {
-        }
-
-        /**
-         * Gets the lookup array for a particular angle index
-         * @param index
-         * @return lookup array
-         */
-        const LookupArray *getLookupArray(uint32_t index) const
-        {
-                assert(math::IsUpTo(index, size_));
-
-                return lookup_array_[index].get();
-        }
-
-        /**
-         * Compute lookup table of the points of the given scan for the given angular space
-         * @param pScan the scan
-         * @param angleCenter
-         * @param angleOffset computes lookup arrays for the angles within this offset around angleStart
-         * @param angleResolution how fine a granularity to compute lookup arrays in the angular space
-         */
-        void computeOffsets(
-            LocalizedRangeScan *scan,
-            double angle_center,
-            double angle_offset,
-            double angle_resolution)
-        {
-                assert(angle_offset != 0.0);
-                assert(angle_resolution != 0.0);
-
-                uint32_t n_angles =
-                    static_cast<uint32_t>(math::Round(angle_offset * 2.0 / angle_resolution) + 1);
-                setSize(n_angles);
-
-                //////////////////////////////////////////////////////
-                // convert points into local coordinates of scan pose
-
-                const PointVectorDouble &point_readings = scan->getPointReadings();
-
-                Pose2Vector local_points;
-                for (const auto &point : point_readings)
-                {
-                        // get points in local coordinates
-                        Pose2 vec = Pose2::transformPose(scan->getSensorPose().inverse(), Pose2(point, 0.0));
-                        local_points.push_back(vec);
-                }
-
-                //////////////////////////////////////////////////////
-                // create lookup array for different angles
-                double angle = 0.0;
-                double start_angle = angle_center - angle_offset;
-                for (uint32_t angle_index = 0; angle_index < n_angles; angle_index++)
-                {
-                        angle = start_angle + angle_index * angle_resolution;
-                        computeOffsets(angle_index, angle, local_points, scan);
-                }
-        }
-
-private:
-        /**
-         * Compute lookup value of points for given angle
-         * @param angleIndex
-         * @param angle
-         * @param rLocalPoints
-         */
-        void computeOffsets(
-            uint32_t angle_index, double angle, const Pose2Vector &local_points,
-            LocalizedRangeScan *scan)
-        {
-                lookup_array_[angle_index]->setSize(static_cast<uint32_t>(local_points.size()));
-                angles_.at(angle_index) = angle;
-
-                // set up point array by computing relative offsets to points readings
-                // when rotated by given angle
-
-                const Vector2d &grid_offset = grid_->getCoordinateConverter()->getOffset();
-
-                double cosine = cos(angle);
-                double sine = sin(angle);
-
-                uint32_t reading_index = 0;
-
-                int32_t *angle_index_pointer = lookup_array_[angle_index]->getArrayPointer();
-
-                double max_range = scan->getLaserRangeFinder()->getMaximumRange();
-
-                for (const auto &point : local_points)
-                {
-                        const Vector2d &position = point.getPosition();
-                        if (std::isnan(scan->getRangeReadings()[reading_index]) ||
-                            std::isinf(scan->getRangeReadings()[reading_index]))
-                        {
-                                angle_index_pointer[reading_index] = math::INVALID_SCAN;
-                                reading_index++;
-                                continue;
-                        }
-
-                        // counterclockwise rotation and that rotation is about the origin (0, 0).
-                        Vector2d offset;
-                        offset.x() = cosine * position.x() - sine * position.y();
-                        offset.y() = sine * position.x() + cosine * position.y();
-
-                        // have to compensate for the grid offset when getting the grid index
-                        Vector2i grid_point = grid_->convertWorldToGrid(offset + grid_offset);
-
-                        // use base GridIndex to ignore ROI
-                        int32_t lookup_index = grid_->Grid<T>::getGridIndex(grid_point, false);
-
-                        angle_index_pointer[reading_index] = lookup_index;
-
-                        reading_index++;
-                }
-
-                assert(reading_index == local_points.size());
-        }
-
-        /**
-         * Sets size of lookup table (resize if not big enough)
-         * @param size
-         */
-        void setSize(uint32_t size)
-        {
-                assert(size != 0);
-
-                if (size > capacity_)
-                {
-                        lookup_array_.clear();
-
-                        capacity_ = size;
-                        lookup_array_.reserve(capacity_);
-
-                        for (uint32_t i = 0; i < capacity_; i++)
-                        {
-                                lookup_array_.push_back(std::make_unique<LookupArray>());
-                        }
-                }
-
-                size_ = size;
-
-                angles_.resize(size);
-        }
-
-}; // GridIndexLookup
-
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
+class OccupancyGrid;
 
 class CellUpdater
 {
@@ -1450,8 +1266,7 @@ public:
                 {
                         data_ = new T[getDataSize()];
 
-                        if (coordinate_converter_ == nullptr)
-                        {
+                        if (coordinate_converter_ == nullptr) {
                                 coordinate_converter_ = new CoordinateConverter();
                         }
                         coordinate_converter_->setSize(Size2<int32_t>(width, height));
@@ -1471,6 +1286,195 @@ public:
 ///////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////
+
+//////////////////////////////////////////////////////////////
+
+/**
+ * Create lookup tables for point readings at varying angles in grid.
+ * For each angle, grid indexes are calculated for each range reading.
+ * This is to speed up finding best angle/position for a localized range scan
+ *
+ * Used heavily in mapper and localizer.
+ *
+ * In the localizer, this is a huge speed up for calculating possible position.  For each particle,
+ * a probability is calculated.  The range scan is the same, but all grid indexes at all possible angles are
+ * calculated.  So when calculating the particle probability at a specific angle, the index table is used
+ * to look up probability in probability grid!
+ *
+ */
+template <typename T>
+class GridIndexLookup
+{
+private:
+        Grid<T> *grid_;
+
+        uint32_t capacity_;
+        uint32_t size_;
+
+        std::vector<std::unique_ptr<LookupArray>> lookup_array_;
+
+        // for sanity check
+        std::vector<double> angles_;
+
+public:
+        GridIndexLookup()
+        {
+        }
+
+        GridIndexLookup(Grid<T> *grid) // NOLINT
+            : grid_(grid),
+              capacity_(0),
+              size_(0)
+        {
+        }
+
+        /**
+         * Gets the lookup array for a particular angle index
+         * @param index
+         * @return lookup array
+         */
+        const LookupArray *getLookupArray(uint32_t index) const
+        {
+                assert(math::IsUpTo(index, size_));
+
+                return lookup_array_[index].get();
+        }
+
+        /**
+         * Compute lookup table of the points of the given scan for the given angular space
+         * @param pScan the scan
+         * @param angleCenter
+         * @param angleOffset computes lookup arrays for the angles within this offset around angleStart
+         * @param angleResolution how fine a granularity to compute lookup arrays in the angular space
+         */
+        void computeOffsets(
+            LocalizedRangeScan *scan,
+            double angle_center,
+            double angle_offset,
+            double angle_resolution)
+        {
+                assert(angle_offset != 0.0);
+                assert(angle_resolution != 0.0);
+
+                uint32_t n_angles =
+                    static_cast<uint32_t>(math::Round(angle_offset * 2.0 / angle_resolution) + 1);
+                setSize(n_angles);
+
+                //////////////////////////////////////////////////////
+                // convert points into local coordinates of scan pose
+
+                const PointVectorDouble &point_readings = scan->getPointReadings();
+
+                Pose2Vector local_points;
+                for (const auto &point : point_readings)
+                {
+                        // get points in local coordinates
+                        Pose2 vec = Pose2::transformPose(scan->getSensorPose().inverse(), Pose2(point, 0.0));
+                        local_points.push_back(vec);
+                }
+
+                //////////////////////////////////////////////////////
+                // create lookup array for different angles
+                double angle = 0.0;
+                double start_angle = angle_center - angle_offset;
+                for (uint32_t angle_index = 0; angle_index < n_angles; angle_index++)
+                {
+                        angle = start_angle + angle_index * angle_resolution;
+                        computeOffsets(angle_index, angle, local_points, scan);
+                }
+        }
+
+private:
+        /**
+         * Compute lookup value of points for given angle
+         * @param angleIndex
+         * @param angle
+         * @param rLocalPoints
+         */
+        void computeOffsets(
+            uint32_t angle_index, double angle, const Pose2Vector &local_points,
+            LocalizedRangeScan *scan)
+        {
+                lookup_array_[angle_index]->setSize(static_cast<uint32_t>(local_points.size()));
+                angles_.at(angle_index) = angle;
+
+                // set up point array by computing relative offsets to points readings
+                // when rotated by given angle
+
+                const Vector2d &grid_offset = grid_->getCoordinateConverter()->getOffset();
+
+                double cosine = cos(angle);
+                double sine = sin(angle);
+
+                uint32_t reading_index = 0;
+
+                int32_t *angle_index_pointer = lookup_array_[angle_index]->getArrayPointer();
+
+                double max_range = scan->getLaserRangeFinder()->getMaximumRange();
+
+                for (const auto &point : local_points)
+                {
+                        const Vector2d &position = point.getPosition();
+                        if (std::isnan(scan->getRangeReadings()[reading_index]) ||
+                            std::isinf(scan->getRangeReadings()[reading_index]))
+                        {
+                                angle_index_pointer[reading_index] = INVALID_SCAN;
+                                reading_index++;
+                                continue;
+                        }
+
+                        // counterclockwise rotation and that rotation is about the origin (0, 0).
+                        Vector2d offset;
+                        offset.x() = cosine * position.x() - sine * position.y();
+                        offset.y() = sine * position.x() + cosine * position.y();
+
+                        // have to compensate for the grid offset when getting the grid index
+                        Vector2i grid_point = grid_->convertWorldToGrid(offset + grid_offset);
+
+                        // use base GridIndex to ignore ROI
+                        int32_t lookup_index = grid_->Grid<T>::getGridIndex(grid_point, false);
+
+                        angle_index_pointer[reading_index] = lookup_index;
+
+                        reading_index++;
+                }
+
+                assert(reading_index == local_points.size());
+        }
+
+        /**
+         * Sets size of lookup table (resize if not big enough)
+         * @param size
+         */
+        void setSize(uint32_t size)
+        {
+                assert(size != 0);
+
+                if (size > capacity_)
+                {
+                        lookup_array_.clear();
+
+                        capacity_ = size;
+                        lookup_array_.reserve(capacity_);
+
+                        for (uint32_t i = 0; i < capacity_; i++)
+                        {
+                                lookup_array_.push_back(std::make_unique<LookupArray>());
+                        }
+                }
+
+                size_ = size;
+
+                angles_.resize(size);
+        }
+
+}; // GridIndexLookup
+
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+
+
 
 class OccupancyGrid : public Grid<uint8_t>
 {
@@ -1494,8 +1498,9 @@ public:
               cell_hit_cnt_(Grid<uint32_t>::createGrid(0, 0, resolution)),
               cell_updater_(nullptr)
         {
+                std::cout << "resolution " << resolution << std::cout;
                 cell_updater_ = new CellUpdater(this);
-
+                
                 assert(math::DoubleEqual(resolution, 0.0));
 
                 min_pass_through_ = 2;
@@ -1516,11 +1521,10 @@ public:
             uint32_t min_pass_through,
             double occupancy_threshold)
         {
-                if (scans.empty())
-                {
+                if (scans.empty()) {
                         return nullptr;
                 }
-
+                std::cout << "print resolution is " << resolution << std::endl;
                 int32_t width, height;
                 Eigen::Vector2d offset;
                 computeGridDimensions(scans, resolution, width, height, offset);

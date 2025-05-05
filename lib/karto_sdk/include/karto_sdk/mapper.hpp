@@ -4,6 +4,7 @@
 #include <iostream>
 #include <unordered_map>
 #include <queue>
+#include <set>
 
 #include "tbb/parallel_for_each.h"
 
@@ -21,6 +22,9 @@ typedef std::map<int, LocalizedRangeScan *> LocalizedRangeScanMap;
 typedef std::vector<Eigen::Vector2d> PointVectorDouble;
 
 //////////////////////////////////////////////////////////////
+template <typename T>
+class Vertex;
+class LinkInfo;
 
 template <typename T>
 class Edge
@@ -287,6 +291,10 @@ public:
 }; // ScanManager
 
 ///////////////////////////////////////////////////////////////////////
+
+// A LinkInfo object contains the requisite information for the "spring"
+// that links two scans together--the pose difference and the uncertainty
+// (represented by a covariance matrix).
 
 class LinkInfo
 {
@@ -613,6 +621,7 @@ protected:
 
 
 ///////////////////////////////////////////////////////////////////////
+class Mapper;
 
 class ScanMatcher
 {
@@ -783,6 +792,8 @@ public:
 }; // ScanMatcher
 
 ///////////////////////////////////////////////////////////////////////
+template <typename T>
+class Visitor;
 
 /**
 * Graph traversal algorithm
@@ -806,8 +817,8 @@ public:
 public:
         virtual std::vector<T *> traverseForScans(Vertex<T> *start_vertex, Visitor<T> *visitor) = 0;
         virtual std::vector<Vertex<T> *> traverseForVertices(
-            Vertex<T> *start_vertex,
-            Visitor<T> *visitor) = 0;
+                Vertex<T> *start_vertex,
+                Visitor<T> *visitor) = 0;
 
 }; // GraphTraversal<T>
 
@@ -1164,19 +1175,7 @@ public:
 }; // ScanSolver
 
 ///////////////////////////////////////////////////////////////////////
-struct LocalizationScanVertex
-{
-        LocalizationScanVertex() {}
-        LocalizationScanVertex(const LocalizationScanVertex &obj)
-        {
-                scan = obj.scan;
-                vertex = obj.vertex;
-        }
-        LocalizedRangeScan *scan;
-        Vertex<LocalizedRangeScan> *vertex;
-};
 
-typedef std::queue<LocalizationScanVertex> LocalizationScanVertices;
 
 class Mapper 
 {
@@ -1329,7 +1328,6 @@ protected:
         std::unique_ptr<ScanMatcher> scan_matcher_;
         std::unique_ptr<MapperGraph> graph_;
         std::unique_ptr<ScanSolver> scan_optimizer_;
-        LocalizationScanVertices localization_scan_vertices_;
 
 protected:
         bool hasMovedEnough(LocalizedRangeScan *scan, LocalizedRangeScan *last_scan) const;
@@ -1388,11 +1386,6 @@ public:
                 return graph_.get();
         }
 
-        const LocalizationScanVertices &getLocalizationVertices()
-        {
-                return localization_scan_vertices_;
-        }
-
         ScanSolver *getScanSolver()
         {
                 return scan_optimizer_.get();
@@ -1441,12 +1434,12 @@ public:
         // get occupancy grid from scans
         OccupancyGrid *getOccupancyGrid(const double &resolution)
         {
-                OccupancyGrid *occ_grid = nullptr;
+                std::cout << "resolution1 is " << resolution << std::endl;
                 return OccupancyGrid::createFromScans(
-                    getAllProcessedScans(),
-                    resolution,
-                    (uint32_t)getParamMinPassThrough(),
-                    (double)getParamOccupancyThreshold());
+                        getAllProcessedScans(),
+                        resolution,
+                        (uint32_t)getParamMinPassThrough(),
+                        (double)getParamOccupancyThreshold());
         }
 
         uint32_t getParamMinPassThrough()

@@ -259,7 +259,7 @@ void CeresSolver::compute()
                 corrections_.clear();
         }
         corrections_.reserve(nodes_->size());
-        Pose2 pose;
+        karto::Pose2 pose;
         ConstGraphIterator iter = nodes_->begin();
         for (iter; iter != nodes_->end(); ++iter) {
                 pose.setX(iter->second(0));
@@ -270,7 +270,7 @@ void CeresSolver::compute()
 }
 
 /*****************************************************************************/
-void CeresSolver::addNode(mapper_utils::Vertex<mapper_utils::LocalizedRangeScan> *pVertex)
+void CeresSolver::addNode(karto::Vertex<karto::LocalizedRangeScan> *pVertex)
 /*****************************************************************************/
 {
         // store nodes
@@ -278,7 +278,7 @@ void CeresSolver::addNode(mapper_utils::Vertex<mapper_utils::LocalizedRangeScan>
                 return;
         }
 
-        Pose2 pose = pVertex->getObject()->getCorrectedPose();
+        karto::Pose2 pose = pVertex->getObject()->getCorrectedPose();
         Eigen::Vector3d pose2d(pose.getX(), pose.getY(), pose.getHeading());
 
         const int id = pVertex->getObject()->getScanId();
@@ -292,7 +292,7 @@ void CeresSolver::addNode(mapper_utils::Vertex<mapper_utils::LocalizedRangeScan>
 }
 
 /*****************************************************************************/
-void CeresSolver::addConstraint(mapper_utils::Edge<mapper_utils::LocalizedRangeScan> *pEdge)
+void CeresSolver::addConstraint(karto::Edge<karto::LocalizedRangeScan> *pEdge)
 /*****************************************************************************/
 {
         // get IDs in graph for this edge
@@ -317,11 +317,11 @@ void CeresSolver::addConstraint(mapper_utils::Edge<mapper_utils::LocalizedRangeS
         }
 
         // extract transformation
-        mapper_utils::LinkInfo *pLinkInfo = (mapper_utils::LinkInfo *)(pEdge->getLabel());
-        Pose2 diff = pLinkInfo->getPoseDifference();
+        karto::LinkInfo *pLinkInfo = (karto::LinkInfo *)(pEdge->getLabel());
+        karto::Pose2 diff = pLinkInfo->getPoseDifference();
         Eigen::Vector3d pose2d(diff.getX(), diff.getY(), diff.getHeading());
 
-        Matrix3d precisionMatrix = pLinkInfo->getCovariance().inverse();
+        karto::Matrix3d precisionMatrix = pLinkInfo->getCovariance().inverse();
         Eigen::Matrix3d information;
         information(0, 0) = precisionMatrix(0, 0);
         information(0, 1) = information(1, 0) = precisionMatrix(0, 1);
@@ -348,7 +348,7 @@ void CeresSolver::addConstraint(mapper_utils::Edge<mapper_utils::LocalizedRangeS
 }
 
 /*****************************************************************************/
-const mapper_utils::ScanSolver::IdPoseVector &CeresSolver::getCorrections() const
+const karto::ScanSolver::IdPoseVector &CeresSolver::getCorrections() const
 /*****************************************************************************/
 {
         return corrections_;

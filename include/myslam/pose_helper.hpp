@@ -2,6 +2,9 @@
 #define MYSLAM_POSE_HELPER_HPP
 
 #include <tf2_ros/buffer.h>
+#include <tf2/utils.hpp>
+
+#include "karto_sdk/mapper.hpp"
 
 namespace pose_utils
 {
@@ -25,7 +28,7 @@ public:
          * @return T_a_b, pose of frame b from frame a
          */
         bool getPose(
-            Pose2 &pose,
+            karto::Pose2 &pose,
             const rclcpp::Time &t,
             const std::string &target_frame,
             const std::string &source_frame)
@@ -44,9 +47,10 @@ public:
                 }
 
                 const double yaw = tf2::getYaw(tmp_pose.transform.rotation);
-                pose = Pose2(tmp_pose.transform.translation.x,
-                             tmp_pose.transform.translation.y,
-                             yaw);
+                pose = karto::Pose2(
+                        tmp_pose.transform.translation.x,
+                        tmp_pose.transform.translation.y,
+                        yaw);
 
                 return true;
         }

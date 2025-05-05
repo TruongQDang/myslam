@@ -3,9 +3,14 @@
 
 #include <string>
 #include <memory>
+
 #include "rclcpp/rclcpp.hpp"
-#include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "visualization_msgs/msg/marker.hpp"
+#include "nav_msgs/msg/occupancy_grid.hpp"
+
+#include "karto_sdk/mapper.hpp"
+
+#include "myslam/myslam_types.hpp"
 
 namespace vis_utils
 {
@@ -38,7 +43,7 @@ namespace vis_utils
         }
 
         inline void toNavMap(
-            const OccupancyGrid *occ_grid,
+            const karto::OccupancyGrid *occ_grid,
             nav_msgs::msg::OccupancyGrid &map)
         {
                 // Translate to ROS format
@@ -65,13 +70,13 @@ namespace vis_utils
                                 uint8_t value = occ_grid->getValue(Eigen::Matrix<int32_t, 2, 1>(x, y));
                                 switch (value)
                                 {
-                                case static_cast<uint8_t>(GridStates::UNKNOWN):
+                                case karto::GRIDSTATES_UNKNOWN:
                                         map.data[MAP_IDX(map.info.width, x, y)] = -1;
                                         break;
-                                case static_cast<uint8_t>(GridStates::OCCUPIED):
+                                case karto::GRIDSTATES_OCCUPIED:
                                         map.data[MAP_IDX(map.info.width, x, y)] = 100;
                                         break;
-                                case static_cast<uint8_t>(GridStates::FREE):
+                                case karto::GRIDSTATES_FREE:
                                         map.data[MAP_IDX(map.info.width, x, y)] = 0;
                                         break;
                                 }

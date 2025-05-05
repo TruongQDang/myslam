@@ -2,10 +2,8 @@
 #define MYSLAM_HPP
 
 #include <boost/thread.hpp>
-#include <memory>
 #include <sys/resource.h>
 
-#include "lifecycle_msgs/msg/state.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
@@ -13,13 +11,16 @@
 #include "tf2_ros/transform_listener.h"
 #include "tf2_ros/message_filter.h"
 #include "tf2_ros/create_timer_ros.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "nav_msgs/msg/occupancy_grid.hpp"
 #include "message_filters/subscriber.h"
 #include "nav_msgs/srv/get_map.hpp"
 #include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
 
+#include "karto_sdk/mapper.hpp"
+
 #include "myslam/myslam_types.hpp"
-#include "myslam/mapper_utils.hpp"
+#include "myslam/pose_helper.hpp"
 #include "myslam/loop_closure_assistant.hpp"
 
 
@@ -28,7 +29,6 @@ namespace myslam
 {
 
 using namespace ::myslam_types;
-using mapper_utils::LocalizedRangeScan;
 
 class MySlam : public rclcpp_lifecycle::LifecycleNode
 {
@@ -57,21 +57,21 @@ protected:
         // // functional bits
         bool shouldProcessScan(
                 const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan,
-                const Pose2 &pose);
-        mapper_utils::LocalizedRangeScan *addScan(const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan,
-                Pose2 &odom_pose);
+                const karto::Pose2 &pose);
+        karto::LocalizedRangeScan *addScan(const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan,
+                karto::Pose2 &odom_pose);
         tf2::Stamped<tf2::Transform> setTransformFromPoses(
-                const Pose2 &corrected_pose,
-                const Pose2 &odom_pose, const rclcpp::Time &t,
+                const karto::Pose2 &corrected_pose,
+                const karto::Pose2 &odom_pose, const rclcpp::Time &t,
                 const bool &update_reprocessing_transform);
         void publishPose(
-                const Pose2 &pose,
+                const karto::Pose2 &pose,
                 const Eigen::Matrix3d &cov,
                 const rclcpp::Time &t);
-        LocalizedRangeScan *getLocalizedRangeScan(
-                mapper_utils::LaserRangeFinder *laser,
+        karto::LocalizedRangeScan *getLocalizedRangeScan(
+                karto::LaserRangeFinder *laser,
                 const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan,
-                Pose2 &odom_pose);
+                karto::Pose2 &odom_pose);
         void makeLaser(const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan);
         bool updateMap();
 
@@ -98,9 +98,9 @@ protected:
         bool first_measurement_;
 
         // helpers
-        std::unique_ptr<mapper_utils::PoseHelper> pose_helper_;
-        std::unique_ptr<mapper_utils::Mapper> mapper_;
-        std::unique_ptr<mapper_utils::LaserRangeFinder> laser_;
+        std::unique_ptr<pose_utils::PoseHelper> pose_helper_;
+        std::unique_ptr<karto::Mapper> mapper_;
+        std::unique_ptr<karto::LaserRangeFinder> laser_;
         std::unique_ptr<loop_closure_assistant::LoopClosureAssistant> closure_assistant_;
 
         // internal state

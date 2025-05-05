@@ -1,16 +1,12 @@
 #ifndef LOOP_CLOSURE_ASSISTANT_HPP
 #define LOOP_CLOSURE_ASSISTANT_HPP
 
-#include "myslam/myslam_types.hpp"
 #include "myslam/visualization_utils.hpp"
-#include "myslam/mapper_utils.hpp"
+#include "karto_sdk/mapper.hpp"
 #include "visualization_msgs/msg/marker_array.hpp"
-#include "tf2_ros/transform_broadcaster.h"
 
 namespace loop_closure_assistant
 {
-
-using namespace ::myslam_types;
 
 class LoopClosureAssistant
 {
@@ -18,16 +14,16 @@ public:
         template <class NodeT>
         LoopClosureAssistant(
                 NodeT node, 
-                mapper_utils::Mapper *mapper,
-                mapper_utils::ScanManager *scan_holder);
+                karto::Mapper *mapper,
+                karto::ScanManager *scan_holder);
         void publishGraph();
-        void setMapper(mapper_utils::Mapper *mapper);
+        void setMapper(karto::Mapper *mapper);
 
 private:
-        mapper_utils::ScanManager *scan_holder_;
+        karto::ScanManager *scan_holder_;
         rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_publisher_;
-        mapper_utils::Mapper *mapper_;
-        mapper_utils::ScanSolver *solver_;
+        karto::Mapper *mapper_;
+        karto::ScanSolver *solver_;
 
         std::string map_frame_;
 

@@ -7,8 +7,8 @@ namespace loop_closure_assistant
 template<class NodeT>
 LoopClosureAssistant::LoopClosureAssistant(
         NodeT node,
-        mapper_utils::Mapper * mapper,
-        mapper_utils::ScanManager* scan_holder)
+        karto::Mapper * mapper,
+        karto::ScanManager* scan_holder)
 : mapper_(mapper), scan_holder_(scan_holder),
   clock_(node->get_clock()), logger_(node->get_logger()),
   parameters_interface_(node->get_node_parameters_interface())
@@ -25,11 +25,11 @@ LoopClosureAssistant::LoopClosureAssistant(
 
 template LoopClosureAssistant::LoopClosureAssistant<std::shared_ptr<rclcpp_lifecycle::LifecycleNode>>(
         std::shared_ptr<rclcpp_lifecycle::LifecycleNode>,
-        mapper_utils::Mapper *,
-        mapper_utils::ScanManager *);
+        karto::Mapper *,
+        karto::ScanManager *);
 
 /*****************************************************************************/
-void LoopClosureAssistant::setMapper(mapper_utils::Mapper *mapper)
+void LoopClosureAssistant::setMapper(karto::Mapper *mapper)
 /*****************************************************************************/
 {
         mapper_ = mapper;
@@ -101,4 +101,4 @@ void LoopClosureAssistant::publishGraph()
         marker_publisher_->publish(marray);
 }
 
-} // loop_closure_assistant
+} // namespace loop_closure_assistant

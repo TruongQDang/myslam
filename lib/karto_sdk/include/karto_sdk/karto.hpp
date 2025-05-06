@@ -20,7 +20,7 @@ enum
         GRIDSTATES_UNKNOWN = 0,
         GRIDSTATES_OCCUPIED = 100,
         GRIDSTATES_FREE = 255
-} GridStates;
+};
 
 typedef Eigen::Matrix<int32_t, 2, 1> Vector2i;
 typedef Eigen::Vector2d Vector2d;
@@ -1480,6 +1480,32 @@ class OccupancyGrid : public Grid<uint8_t>
 
         friend class CellUpdater;
 
+private:
+        double occupancy_threshold_;
+        uint32_t min_pass_through_;
+        CellUpdater *cell_updater_;
+
+        /**
+         * Restrict the copy constructor
+         */
+        OccupancyGrid(const OccupancyGrid &);
+
+        /**
+         * Restrict the assignment operator
+         */
+        const OccupancyGrid &operator=(const OccupancyGrid &);
+
+protected:
+        /**
+         * Counters of number of times a beam passed through a cell
+         */
+        std::unique_ptr<Grid<uint32_t>> cell_pass_cnt_;
+
+        /**
+         * Counters of number of times a beam ended at a cell
+         */
+        std::unique_ptr<Grid<uint32_t>> cell_hit_cnt_;
+
 public:
         /**
          * Constructs an occupancy grid of given size
@@ -1493,9 +1519,9 @@ public:
             const Eigen::Vector2d &offset,
             double resolution)
             : Grid<uint8_t>(width, height),
+              cell_updater_(nullptr),
               cell_pass_cnt_(Grid<uint32_t>::createGrid(0, 0, resolution)),
-              cell_hit_cnt_(Grid<uint32_t>::createGrid(0, 0, resolution)),
-              cell_updater_(nullptr)
+              cell_hit_cnt_(Grid<uint32_t>::createGrid(0, 0, resolution))
         {
                 cell_updater_ = new CellUpdater(this);
                 if (math::DoubleEqual(resolution, 0.0)) {
@@ -1526,12 +1552,12 @@ public:
                 int32_t width, height;
                 Eigen::Vector2d offset;
                 computeGridDimensions(scans, resolution, width, height, offset);
-                OccupancyGrid *pOccupancyGrid = new OccupancyGrid(width, height, offset, resolution);
-                pOccupancyGrid->setMinPassThrough(min_pass_through);
-                pOccupancyGrid->setOccupancyThreshold(occupancy_threshold);
-                pOccupancyGrid->createFromScans(scans);
+                OccupancyGrid *occupancy_grid = new OccupancyGrid(width, height, offset, resolution);
+                occupancy_grid->setMinPassThrough(min_pass_through);
+                occupancy_grid->setOccupancyThreshold(occupancy_threshold);
+                occupancy_grid->createFromScans(scans);
 
-                return pOccupancyGrid;
+                return occupancy_grid;
         }
 
         /**
@@ -1763,32 +1789,6 @@ public:
                         updateCell(data_ptr, *cell_pass_cnt_ptr, *cell_hit_cnt_ptr);
                 }
         }
-
-private:
-        double occupancy_threshold_;
-        uint32_t min_pass_through_;
-        CellUpdater *cell_updater_;
-
-        /**
-         * Restrict the copy constructor
-         */
-        OccupancyGrid(const OccupancyGrid &);
-
-        /**
-         * Restrict the assignment operator
-         */
-        const OccupancyGrid &operator=(const OccupancyGrid &);
-
-protected:
-        /**
-         * Counters of number of times a beam passed through a cell
-         */
-        std::unique_ptr<Grid<uint32_t>> cell_pass_cnt_;
-
-        /**
-         * Counters of number of times a beam ended at a cell
-         */
-        std::unique_ptr<Grid<uint32_t>> cell_hit_cnt_;
 }; // OccupancyGrid
 
 }

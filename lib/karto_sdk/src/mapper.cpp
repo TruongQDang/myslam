@@ -393,11 +393,6 @@ double ScanMatcher::correlateScan(
         // allocate array
         pose_response_ = std::make_unique<std::pair<double, Pose2>[]>(pose_response_size);
 
-        Vector2i start_grid_point = correlation_grid_->convertWorldToGrid(
-                Vector2d(
-                        search_center.getX() + start_x,
-                        search_center.getY() + start_y));
-
         // this isn't good but its the fastest way to iterate. Should clean up later.
         search_center_ = search_center;
         search_angle_offset_ = search_angle_offset;
@@ -1004,14 +999,15 @@ void MapperGraph::linkScans(
 
 LocalizedRangeScanVector MapperGraph::findNearLinkedScans(LocalizedRangeScan *scan, double max_distance)
 {
-        NearScanVisitor *visitor = new NearScanVisitor(
+        std::unique_ptr<NearScanVisitor> visitor = std::make_unique<NearScanVisitor>(
                 scan, 
                 max_distance,
-                mapper_->use_scan_barycenter_);
+                mapper_->use_scan_barycenter_
+        );
         LocalizedRangeScanVector nearLinkedScans = traversal_->traverseForScans(
                 getVertex(scan),
-                visitor);
-        delete visitor;
+                visitor.get());
+        visitor.reset();
 
         return nearLinkedScans;
 }
@@ -1557,21 +1553,21 @@ bool Mapper::process(LocalizedRangeScan * scan, Eigen::Matrix3d * covariance)
                 // get last scan
                 LocalizedRangeScan *last_scan = scan_manager_->getLastScan();
 
-                // // update scans corrected pose based on last correction
-                // if (last_scan != nullptr) {
-                //         Pose2 T_map_odom = Pose2::transformPose(
-                //                 last_scan->getCorrectedPose(),
-                //                 last_scan->getOdometricPose().inverse());
-                //         scan->setCorrectedPose(
-                //                 Pose2::transformPose(
-                //                         T_map_odom,
-                //                         scan->getOdometricPose()));
-                // }
+                // update scans corrected pose based on last correction
+                if (last_scan != nullptr) {
+                        Pose2 T_map_odom = Pose2::transformPose(
+                                last_scan->getCorrectedPose(),
+                                last_scan->getOdometricPose().inverse());
+                        scan->setCorrectedPose(
+                                Pose2::transformPose(
+                                        T_map_odom,
+                                        scan->getOdometricPose()));
+                }
 
-                // // // test if heading is larger then minimum heading
-                // // if (!hasMovedEnough(scan, last_scan)) {
-                // //         return false;
-                // // }
+                // // test if heading is larger then minimum heading
+                // if (!hasMovedEnough(scan, last_scan)) {
+                //         return false;
+                // }
 
                 Eigen::Matrix3d cov = Eigen::Matrix3d::Identity();
 
@@ -1592,10 +1588,10 @@ bool Mapper::process(LocalizedRangeScan * scan, Eigen::Matrix3d * covariance)
                 // add scan to buffer and assign id
                 scan_manager_->addScan(scan);
 
-                // // add to graph
-                // graph_->addVertex(scan);
+                // add to graph
+                graph_->addVertex(scan);
 
-                // graph_->addEdges(scan, cov);
+                graph_->addEdges(scan, cov);
 
                 scan_manager_->addRunningScan(scan);
 

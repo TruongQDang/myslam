@@ -3,7 +3,7 @@
 namespace karto
 {
 // enable for verbose debug
-// #define MYSLAM_DEBUG
+#define MYSLAM_DEBUG
 #define MAX_VARIANCE 500.0
 #define DISTANCE_PENALTY_GAIN 0.2
 #define ANGLE_PENALTY_GAIN 0.2

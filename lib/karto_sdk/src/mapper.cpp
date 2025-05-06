@@ -39,10 +39,10 @@ std::unique_ptr<ScanMatcher> ScanMatcher::create(
                 return nullptr;
         }
 
-        assert(math::DoubleEqual(std::round(search_size / resolution), (search_size / resolution)));
+        assert(math::DoubleEqual(math::Round(search_size / resolution), (search_size / resolution)));
 
         // calculate search space in grid coordinates
-        uint32_t search_space_side_size = static_cast<uint32_t>(std::round(search_size / resolution) + 1);
+        uint32_t search_space_side_size = static_cast<uint32_t>(math::Round(search_size / resolution) + 1);
 
         // compute requisite size of correlation grid (pad grid so that scan
         // points can't fall off the grid
@@ -368,7 +368,7 @@ double ScanMatcher::correlateScan(
         // calculate position arrays
         x_poses_.clear();
         uint32_t n_x = static_cast<uint32_t>(
-                std::round(search_space_offset.x() * 2.0 / search_space_resolution.x()) + 1);
+                math::Round(search_space_offset.x() * 2.0 / search_space_resolution.x()) + 1);
         double start_x = -search_space_offset.x();
         for (uint32_t x_index = 0; x_index < n_x; x_index++) {
                 x_poses_.push_back(start_x + x_index * search_space_resolution.x());
@@ -377,7 +377,7 @@ double ScanMatcher::correlateScan(
 
         y_poses_.clear();
         uint32_t n_y = static_cast<uint32_t>(
-            std::round(search_space_offset.y() * 2.0 / search_space_resolution.y()) + 1);
+            math::Round(search_space_offset.y() * 2.0 / search_space_resolution.y()) + 1);
         double start_y = -search_space_offset.y();
         for (uint32_t y_index = 0; y_index < n_y; y_index++) {
                 y_poses_.push_back(start_y + y_index * search_space_resolution.y());
@@ -386,7 +386,7 @@ double ScanMatcher::correlateScan(
 
         // calculate pose response array size
         uint32_t n_angles = 
-                static_cast<uint32_t>(std::round(search_angle_offset * 2.0 / search_angle_resolution) + 1);
+                static_cast<uint32_t>(math::Round(search_angle_offset * 2.0 / search_angle_resolution) + 1);
 
         uint32_t pose_response_size = static_cast<uint32_t>(x_poses_.size() * y_poses_.size() * n_angles);
 
@@ -519,8 +519,7 @@ void ScanMatcher::operator()(const double &y) const
 
                 double angle = 0.0;
                 double startAngle = search_center_.getHeading() - search_angle_offset_;
-                for (uint32_t angleIndex = 0; angleIndex < n_angles_; angleIndex++)
-                {
+                for (uint32_t angleIndex = 0; angleIndex < n_angles_; angleIndex++) {
                         angle = startAngle + angleIndex * search_angle_resolution_;
 
                         double response = getResponse(angleIndex, gridIndex);
@@ -1555,8 +1554,8 @@ bool Mapper::process(LocalizedRangeScan * scan, Eigen::Matrix3d * covariance)
                         initialize(laser->getRangeThreshold());
                 }
 
-                // // get last scan
-                // LocalizedRangeScan *last_scan = scan_manager_->getLastScan();
+                // get last scan
+                LocalizedRangeScan *last_scan = scan_manager_->getLastScan();
 
                 // // update scans corrected pose based on last correction
                 // if (last_scan != nullptr) {
@@ -1574,21 +1573,21 @@ bool Mapper::process(LocalizedRangeScan * scan, Eigen::Matrix3d * covariance)
                 // //         return false;
                 // // }
 
-                // Eigen::Matrix3d cov = Eigen::Matrix3d::Identity();
+                Eigen::Matrix3d cov = Eigen::Matrix3d::Identity();
 
-                // // correct scan (if not first scan)
-                // if (last_scan != nullptr) {
-                //         Pose2 best_pose;
-                //         scan_matcher_->matchScan(
-                //                 scan,
-                //                 scan_manager_->getRunningScans(),
-                //                 best_pose,
-                //                 cov);
-                //         scan->setSensorPose(best_pose);
-                //         if (covariance) {
-                //                 *covariance = cov;
-                //         }
-                // }
+                // correct scan (if not first scan)
+                if (last_scan != nullptr) {
+                        Pose2 best_pose;
+                        scan_matcher_->matchScan(
+                                scan,
+                                scan_manager_->getRunningScans(),
+                                best_pose,
+                                cov);
+                        scan->setSensorPose(best_pose);
+                        if (covariance) {
+                                *covariance = cov;
+                        }
+                }
 
                 // add scan to buffer and assign id
                 scan_manager_->addScan(scan);
@@ -1598,7 +1597,7 @@ bool Mapper::process(LocalizedRangeScan * scan, Eigen::Matrix3d * covariance)
 
                 // graph_->addEdges(scan, cov);
 
-                // scan_manager_->addRunningScan(scan);
+                scan_manager_->addRunningScan(scan);
 
                 // graph_->tryCloseLoop(scan);
 

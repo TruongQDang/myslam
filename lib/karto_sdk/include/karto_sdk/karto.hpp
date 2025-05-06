@@ -3,7 +3,6 @@
 
 #include <memory>
 #include <vector>
-#include <iostream>
 #include <boost/thread.hpp>
 
 #include <Eigen/Geometry>
@@ -1498,10 +1497,10 @@ public:
               cell_hit_cnt_(Grid<uint32_t>::createGrid(0, 0, resolution)),
               cell_updater_(nullptr)
         {
-                std::cout << "resolution " << resolution << std::cout;
                 cell_updater_ = new CellUpdater(this);
-                
-                assert(math::DoubleEqual(resolution, 0.0));
+                if (math::DoubleEqual(resolution, 0.0)) {
+                        throw std::invalid_argument("Resolution cannot be 0");
+                }
 
                 min_pass_through_ = 2;
                 occupancy_threshold_ = 0.1;
@@ -1524,7 +1523,6 @@ public:
                 if (scans.empty()) {
                         return nullptr;
                 }
-                std::cout << "print resolution is " << resolution << std::endl;
                 int32_t width, height;
                 Eigen::Vector2d offset;
                 computeGridDimensions(scans, resolution, width, height, offset);

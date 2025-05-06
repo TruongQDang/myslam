@@ -1434,7 +1434,6 @@ public:
         // get occupancy grid from scans
         OccupancyGrid *getOccupancyGrid(const double &resolution)
         {
-                std::cout << "resolution1 is " << resolution << std::endl;
                 return OccupancyGrid::createFromScans(
                         getAllProcessedScans(),
                         resolution,

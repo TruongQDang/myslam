@@ -49,15 +49,15 @@ namespace vis_utils
                 // Translate to ROS format
                 int32_t width = occ_grid->getWidth();
                 int32_t height = occ_grid->getHeight();
-                Eigen::Vector2d offset = occ_grid->getCoordinateConverter()->getOffset();
+                karto::Vector2<double> offset = occ_grid->getCoordinateConverter()->getOffset();
 
                 if (map.info.width != (unsigned int)width ||
                     map.info.height != (unsigned int)height ||
-                    map.info.origin.position.x != offset.x() ||
-                    map.info.origin.position.y != offset.y())
+                    map.info.origin.position.x != offset.GetX() ||
+                    map.info.origin.position.y != offset.GetY())
                 {
-                        map.info.origin.position.x = offset.x();
-                        map.info.origin.position.y = offset.y();
+                        map.info.origin.position.x = offset.GetX();
+                        map.info.origin.position.y = offset.GetY();
                         map.info.width = width;
                         map.info.height = height;
                         map.data.resize(map.info.width * map.info.height);
@@ -67,7 +67,7 @@ namespace vis_utils
                 {
                         for (int32_t x = 0; x < width; x++)
                         {
-                                uint8_t value = occ_grid->getValue(Eigen::Matrix<int32_t, 2, 1>(x, y));
+                                uint8_t value = occ_grid->getValue(karto::Vector2<int32_t>(x, y));
                                 switch (value)
                                 {
                                 case karto::GRIDSTATES_UNKNOWN:

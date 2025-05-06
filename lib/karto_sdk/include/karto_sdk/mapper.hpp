@@ -6,6 +6,7 @@
 #include <queue>
 #include <set>
 
+#include "Eigen/Core"
 #include "tbb/parallel_for_each.h"
 
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
@@ -19,7 +20,7 @@ namespace karto
 
 typedef std::vector<LocalizedRangeScan *> LocalizedRangeScanVector;
 typedef std::map<int, LocalizedRangeScan *> LocalizedRangeScanMap;
-typedef std::vector<Eigen::Vector2d> PointVectorDouble;
+typedef std::vector<Vector2<double>> PointVectorDouble;
 
 //////////////////////////////////////////////////////////////
 template <typename T>
@@ -221,7 +222,7 @@ public:
                 Pose2 back_scan_pose = running_scans_.back()->getSensorPose();
 
                 // cap vector size and remove all scans from front of vector that are too far from end of vector
-                double squared_distance = front_scan_pose.getSquaredDistance(back_scan_pose);
+                double squared_distance = front_scan_pose.SquaredDistance(back_scan_pose);
                 while (running_scans_.size() > running_buffer_maximum_size_ ||
                        squared_distance > math::Square(running_buffer_maximum_distance_) - KT_TOLERANCE) {
                         // remove front of running scans
@@ -230,7 +231,7 @@ public:
                         // recompute stats of running scans
                         front_scan_pose = running_scans_.front()->getSensorPose();
                         back_scan_pose = running_scans_.back()->getSensorPose();
-                        squared_distance = front_scan_pose.getSquaredDistance(back_scan_pose);
+                        squared_distance = front_scan_pose.SquaredDistance(back_scan_pose);
                 }
         }
 
@@ -302,14 +303,14 @@ private:
         Pose2 pose1_;
         Pose2 pose2_;
         Pose2 pose_difference_;
-        Matrix3d covariance_;
+        Matrix3 covariance_;
 
 public:
         LinkInfo()
         {
         }
 
-        LinkInfo(const Pose2 &rPose1, const Pose2 &rPose2, const Matrix3d &rCovariance)
+        LinkInfo(const Pose2 &rPose1, const Pose2 &rPose2, const Matrix3 &rCovariance)
         {
                 Update(rPose1, rPose2, rCovariance);
         }
@@ -320,19 +321,20 @@ public:
          * @param rPose2
          * @param rCovariance
          */
-        void Update(const Pose2 &pose1, const Pose2 &pose2, const Matrix3d &covariance)
+        void Update(const Pose2 &pose1, const Pose2 &pose2, const Matrix3 &covariance)
         {
                 pose1_ = pose1;
                 pose2_ = pose2;
 
                 // transform second pose into the coordinate system of the first pose
-                pose_difference_ = Pose2::transformPose(pose1.inverse(), pose2);
+                Transform transform(pose1, Pose2());
+                pose_difference_ = transform.TransformPose(pose2);
 
                 // transform covariance into reference of first pose
-                Matrix3d rotation_matrix = Eigen::AngleAxisd(
-                        pose1.getHeading(), 
-                        Eigen::Vector3d::UnitZ()).toRotationMatrix();
-                covariance_ = rotation_matrix * covariance * rotation_matrix.transpose();
+                Matrix3 rotationMatrix;
+                rotationMatrix.FromAxisAngle(0, 0, 1, -pose1.GetHeading());
+
+                covariance_ = rotationMatrix * covariance * rotationMatrix.Transpose();
         }
 
         /**
@@ -348,7 +350,7 @@ public:
          * Gets the link covariance
          * @return link covariance
          */
-        inline const Matrix3d &getCovariance()
+        inline const Matrix3 &getCovariance()
         {
                 return covariance_;
         }
@@ -500,19 +502,19 @@ public:
          * @param boundaryCheck
          * @return grid index
          */
-        virtual int32_t getGridIndex(const Vector2i &grid, bool boundary_check = true) const
+        virtual int32_t getGridIndex(const Vector2<int32_t> &grid, bool boundary_check = true) const
         {
-                int32_t x = grid.x() + roi_.getX();
-                int32_t y = grid.y() + roi_.getY();
+                int32_t x = grid.GetX() + roi_.getX();
+                int32_t y = grid.GetY() + roi_.getY();
 
-                return Grid<uint8_t>::getGridIndex(Vector2i(x, y), boundary_check);
+                return Grid<uint8_t>::getGridIndex(Vector2<int32_t>(x, y), boundary_check);
         }
 
         /**
          * Smear cell if the cell at the given point is marked as "occupied"
          * @param rGridPoint
          */
-        inline void smearPoint(const Vector2i &grid_point)
+        inline void smearPoint(const Vector2<int32_t> &grid_point)
         {
                 assert(kernel_ != nullptr);
 
@@ -526,7 +528,7 @@ public:
                 // apply kernel
                 for (int32_t j = -half_kernel; j <= half_kernel; j++) {
                         uint8_t *grid_adr = getDataPointer(
-                                Vector2i(grid_point.x(), grid_point.y() + j));
+                                Vector2<int32_t>(grid_point.GetX(), grid_point.GetY() + j));
 
                         int32_t kernel_constant = (half_kernel) + kernel_size_ * (j + half_kernel);
 
@@ -644,8 +646,8 @@ private:
          * @param scan scans whose points will mark cells in grid as being occupied
          * @param view_point do not add points that belong to scans "opposite" the view point
          */
-        void addScans(const LocalizedRangeScanVector &scan, Eigen::Vector2d view_point);
-        void addScans(const LocalizedRangeScanMap &scans, Eigen::Vector2d view_point);
+        void addScans(const LocalizedRangeScanVector &scan, Vector2<double> view_point);
+        void addScans(const LocalizedRangeScanMap &scans, Vector2<double> view_point);
 
         /**
          * Marks cells where scans' points hit as being occupied.  Can smear points as they are added.
@@ -654,7 +656,7 @@ private:
          * @param doSmear whether the points will be smeared
          */
         void addScan(
-            LocalizedRangeScan *scan, const Eigen::Vector2d &viewpoint,
+            LocalizedRangeScan *scan, const Vector2<double> &viewpoint,
             bool do_smear = true);
 
         /**
@@ -665,7 +667,7 @@ private:
          */
         PointVectorDouble findValidPoints(
                 LocalizedRangeScan *scan,
-                const Eigen::Vector2d &viewpoint) const;
+                const Vector2<double> &viewpoint) const;
 
         /**
          * Get response at given position for given rotation (only look up valid points)
@@ -722,7 +724,7 @@ public:
         double matchScan(
                 LocalizedRangeScan *scan,
                 const T &base_scans,
-                Pose2 &mean, Eigen::Matrix3d &covariance,
+                Pose2 &mean, Matrix3 &covariance,
                 bool do_penalize = true,
                 bool do_refine_match = true);
 
@@ -745,13 +747,13 @@ public:
         double correlateScan(
                 LocalizedRangeScan *scan,
                 const Pose2 &search_center,
-                const Vector2d &search_space_offset,
-                const Vector2d &search_space_resolution,
+                const Vector2<double> &search_space_offset,
+                const Vector2<double> &search_space_resolution,
                 double search_angle_offset,
                 double search_angle_resolution,
                 bool do_penalize,
                 Pose2 &mean,
-                Matrix3d &covariance,
+                Matrix3 &covariance,
                 bool doing_fine_match);
 
         /**
@@ -768,10 +770,10 @@ public:
             const Pose2 &best_pose,
             double best_response,
             const Pose2 &search_center,
-            const Vector2d &search_space_offset,
-            const Vector2d &search_space_resolution,
+            const Vector2<double> &search_space_offset,
+            const Vector2<double> &search_space_resolution,
             double search_angle_resolution,
-            Matrix3d &covariance);
+            Matrix3 &covariance);
 
         /**
          * Computes the angular covariance of the best pose
@@ -788,7 +790,7 @@ public:
             const Pose2 &search_center,
             double search_angle_offset,
             double search_angle_resolution,
-            Matrix3d &covariance);
+            Matrix3 &covariance);
 }; // ScanMatcher
 
 ///////////////////////////////////////////////////////////////////////
@@ -937,7 +939,7 @@ public:
                 try {
                         LocalizedRangeScan *scan = vertex->getObject();
                         Pose2 pose = scan->getReferencePose(use_scan_barycenter_);
-                        double squared_distance = pose.getSquaredDistance(center_pose_);
+                        double squared_distance = pose.SquaredDistance(center_pose_);
                         return squared_distance <= max_distance_squared_ - KT_TOLERANCE;
                 } catch (...) {
                         // relocalization vertex elements missing
@@ -1003,7 +1005,7 @@ public:
          * @param pScan
          * @param rCovariance uncertainty of match
          */
-        void addEdges(LocalizedRangeScan *scan, const Matrix3d &covariance);
+        void addEdges(LocalizedRangeScan *scan, const Matrix3 &covariance);
 
 
         bool tryCloseLoop(LocalizedRangeScan *scan);
@@ -1032,7 +1034,7 @@ private:
             LocalizedRangeScan *from_scan,
             LocalizedRangeScan *to_scan,
             const Pose2 &mean,
-            const Matrix3d &covariance);
+            const Matrix3 &covariance);
 
         /**
          * Finds the closest scan in the vector to the given pose
@@ -1066,7 +1068,7 @@ private:
                 const LocalizedRangeScanVector &chain,
                 LocalizedRangeScan *scan,
                 const Pose2 &mean,
-                const Matrix3d &covariance);
+                const Matrix3 &covariance);
 
         /**
          * Find nearby chains of scans and link them to scan if response is high enough
@@ -1076,7 +1078,7 @@ private:
          */
         void linkNearChains(
             LocalizedRangeScan *scan, Pose2Vector &means,
-            std::vector<Matrix3d> &covariances);
+            std::vector<Matrix3> &covariances);
 
         /**
          * Find chains of scans that are close to given scan
@@ -1093,7 +1095,7 @@ private:
          */
         Pose2 computeWeightedMean(
             const Pose2Vector &means,
-            const std::vector<Matrix3d> &covariances) const;
+            const std::vector<Matrix3> &covariances) const;
 
         /**
          * Gets the vertex associated with the given scan
@@ -1411,7 +1413,7 @@ public:
          *
          * @return true if the scan was added successfully, false otherwise
          */
-        bool process(LocalizedRangeScan *scan, Eigen::Matrix3d *covariance = nullptr);
+        bool process(LocalizedRangeScan *scan, Matrix3 *covariance = nullptr);
 
         /**
          * Returns all processed scans added to the mapper.

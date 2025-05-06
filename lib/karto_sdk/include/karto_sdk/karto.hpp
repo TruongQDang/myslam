@@ -5,8 +5,6 @@
 #include <vector>
 #include <boost/thread.hpp>
 
-#include <Eigen/Geometry>
-
 #include "math.hpp"
 
 namespace karto
@@ -22,7 +20,6 @@ enum GridStates
         GRIDSTATES_FREE = 255
 };
 
-typedef std::vector<Vector2<double>> PointVectorDouble;
 
 ///////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////
@@ -317,14 +314,6 @@ public:
         {
                 // Implement me!!  TODO(lucbettaieb): What the what?  Do I need to implement this?
                 return rStream;
-        }
-
-        friend class boost::serialization::access;
-        template <class Archive>
-        void serialize(Archive &ar, const unsigned int version)
-        {
-                ar &boost::serialization::make_nvp("m_Values_0", m_Values[0]);
-                ar &boost::serialization::make_nvp("m_Values_1", m_Values[1]);
         }
 
 private:
@@ -1017,7 +1006,7 @@ public:
         {
                 Vector2<double> size = maximum_ - minimum_;
 
-                return Size2<double>(size.x(), size.y());
+                return Size2<double>(size.GetX(), size.GetY());
         }
 
         /**
@@ -1025,8 +1014,8 @@ public:
          */
         inline void add(const Vector2<double> &point)
         {
-                minimum_ = minimum_.cwiseMin(point);
-                maximum_ = maximum_.cwiseMax(point);
+                minimum_.MakeFloor(point);
+                maximum_.MakeCeil(point);
         }
 
         /**
@@ -1095,7 +1084,7 @@ public:
          */
         inline T getX() const
         {
-                return position_.x();
+                return position_.GetX();
         }
 
         /**
@@ -1104,7 +1093,18 @@ public:
          */
         inline T getY() const
         {
-                return position_.y();
+                return position_.GetY();
+        }
+
+        /**
+         * Assignment operator
+         */
+        Rectangle2 &operator=(const Rectangle2 &rOther)
+        {
+                position_ = rOther.position_;
+                size_ = rOther.size_;
+
+                return *this;
         }
 
 }; // Rectangle2
@@ -1512,8 +1512,8 @@ private:
                                 double range_reading = getRangeReadings()[i];
                                 double angle = scan_pose.GetHeading() + minimum_angle + beam_num * angular_resolution;
                                 Vector2<double> point;
-                                point.x() = scan_pose.GetX() + (range_reading * cos(angle));
-                                point.y() = scan_pose.GetY() + (range_reading * sin(angle));
+                                point.SetX(scan_pose.GetX() + (range_reading * cos(angle)));
+                                point.SetY(scan_pose.GetY() + (range_reading * sin(angle)));
 
                                 if (!math::InRange(range_reading, laser_->getMinimumRange(), range_threshold))
                                 {
@@ -1791,7 +1791,7 @@ public:
          * @param rGrid grid coordinate
          * @return grid point
          */
-        T *getDataPointer(const Eigen::Matrix<int32_t, 2, 1> &grid)
+        T *getDataPointer(const Vector2<int32_t> &grid)
         {
                 int32_t index = getGridIndex(grid, true);
                 return data_ + index;
@@ -1834,7 +1834,7 @@ public:
          * @param grid_coordinate grid coordinate
          * @return value
          */
-        inline T getValue(const Eigen::Matrix<int32_t, 2, 1> &grid_coordinate) const
+        inline T getValue(const Vector2<int32_t> &grid_coordinate) const
         {
                 int32_t index = getGridIndex(grid_coordinate);
                 return data_[index];
@@ -1901,7 +1901,7 @@ public:
                                 error -= delta_x;
                         }
 
-                        Eigen::Matrix<int32_t, 2, 1> grid_index(point_x, point_y);
+                        Vector2<int32_t> grid_index(point_x, point_y);
                         if (isValidGridIndex(grid_index))
                         {
                                 int32_t index = getGridIndex(grid_index, false);
@@ -1920,9 +1920,9 @@ public:
          * Checks whether the given coordinates are valid grid indices
          * @param grid
          */
-        inline bool isValidGridIndex(const Eigen::Matrix<int32_t, 2, 1> &grid) const
+        inline bool isValidGridIndex(const Vector2<int32_t> &grid) const
         {
-                return (grid(0) < width_ && grid(1) < height_);
+                return (grid.GetX() < width_ && grid.GetY() < height_);
         }
 
         /**
@@ -1931,8 +1931,8 @@ public:
          * @param flip_y
          * @return grid coordinate
          */
-        inline Vector2i convertWorldToGrid(
-            const Vector2d &world,
+        inline Vector2<int32_t> convertWorldToGrid(
+            const Vector2<double> &world,
             bool flip_y = false) const
         {
                 return coordinate_converter_->convertWorldToGrid(world, flip_y);
@@ -1944,7 +1944,7 @@ public:
          * @param boundary_check default value is true
          * @return grid index
          */
-        virtual int32_t getGridIndex(const Vector2i &grid, bool boundary_check = true) const
+        virtual int32_t getGridIndex(const Vector2<int32_t> &grid, bool boundary_check = true) const
         {
                 if (boundary_check == true) {
                         if (isValidGridIndex(grid) == false) {
@@ -1952,7 +1952,7 @@ public:
                         }
                 }
 
-                int32_t index = grid.x() + (grid.y() * width_step_);
+                int32_t index = grid.GetX() + (grid.GetY() * width_step_);
 
                 if (boundary_check == true) {
                         assert(math::IsUpTo(index, getDataSize()));
@@ -2031,6 +2031,7 @@ public:
 
 //////////////////////////////////////////////////////////////
 
+typedef std::vector<Vector2<double>> PointVectorDouble;
 /**
  * Create lookup tables for point readings at varying angles in grid.
  * For each angle, grid indexes are calculated for each range reading.
@@ -2107,11 +2108,14 @@ public:
 
                 const PointVectorDouble &point_readings = scan->getPointReadings();
 
+                // compute transform to scan pose
+                Transform transform(scan->getSensorPose());
+
                 Pose2Vector local_points;
                 for (const auto &point : point_readings)
                 {
-                        // get points in local coordinates
-                        Pose2 vec = Pose2::transformPose(scan->getSensorPose().inverse(), Pose2(point, 0.0));
+                        // do inverse transform to get points in local coordinates
+                        Pose2 vec = transform.InverseTransformPose(Pose2(point, 0.0));
                         local_points.push_back(vec);
                 }
 
@@ -2143,7 +2147,7 @@ private:
                 // set up point array by computing relative offsets to points readings
                 // when rotated by given angle
 
-                const Vector2d &grid_offset = grid_->getCoordinateConverter()->getOffset();
+                const Vector2<double> &grid_offset = grid_->getCoordinateConverter()->getOffset();
 
                 double cosine = cos(angle);
                 double sine = sin(angle);
@@ -2152,11 +2156,9 @@ private:
 
                 int32_t *angle_index_pointer = lookup_array_[angle_index]->getArrayPointer();
 
-                double max_range = scan->getLaserRangeFinder()->getMaximumRange();
-
                 for (const auto &point : local_points)
                 {
-                        const Vector2d &position = point.getPosition();
+                        const Vector2<double> &position = point.GetPosition();
                         if (std::isnan(scan->getRangeReadings()[reading_index]) ||
                             std::isinf(scan->getRangeReadings()[reading_index]))
                         {
@@ -2166,12 +2168,12 @@ private:
                         }
 
                         // counterclockwise rotation and that rotation is about the origin (0, 0).
-                        Vector2d offset;
-                        offset.x() = cosine * position.x() - sine * position.y();
-                        offset.y() = sine * position.x() + cosine * position.y();
+                        Vector2<double> offset;
+                        offset.SetX(cosine * position.GetX() - sine * position.GetY());
+                        offset.SetY(sine * position.GetX() + cosine * position.GetY());
 
                         // have to compensate for the grid offset when getting the grid index
-                        Vector2i grid_point = grid_->convertWorldToGrid(offset + grid_offset);
+                        Vector2<int32_t> grid_point = grid_->convertWorldToGrid(offset + grid_offset);
 
                         // use base GridIndex to ignore ROI
                         int32_t lookup_index = grid_->Grid<T>::getGridIndex(grid_point, false);
@@ -2355,12 +2357,12 @@ public:
         {
                 assert(cell_pass_cnt_ != nullptr && cell_hit_cnt_ != nullptr);
 
-                Eigen::Matrix<int32_t, 2, 1> grid_from = cell_pass_cnt_->convertWorldToGrid(world_from);
-                Eigen::Matrix<int32_t, 2, 1> grid_to = cell_pass_cnt_->convertWorldToGrid(world_to);
+                Vector2<int32_t> grid_from = cell_pass_cnt_->convertWorldToGrid(world_from);
+                Vector2<int32_t> grid_to = cell_pass_cnt_->convertWorldToGrid(world_to);
 
                 CellUpdater *cell_updater = do_update ? cell_updater_ : nullptr;
-                cell_pass_cnt_->traceLine(grid_from(0), grid_from(1), grid_to(0),
-                                          grid_to(1), cell_updater);
+                cell_pass_cnt_->traceLine(grid_from.GetX(), grid_from.GetY(), grid_to.GetX(),
+                                          grid_to.GetY(), cell_updater);
 
                 // for the end point
                 if (is_endpoint_valid)
@@ -2492,10 +2494,10 @@ public:
                         {
                                 // clip range reading to be within trusted region
                                 double ratio = range_threshold / range_reading;
-                                double dx = point.x() - scan_position.x();
-                                double dy = point.y() - scan_position.y();
-                                point.x() = scan_position.x() + ratio * dx;
-                                point.y() = scan_position.y() + ratio * dy;
+                                double dx = point.GetX() - scan_position.GetX();
+                                double dy = point.GetY() - scan_position.GetY();
+                                point.SetX(scan_position.GetX() + ratio * dx);
+                                point.SetY(scan_position.GetY() + ratio * dy);
                         }
 
                         bool is_in_map = rayTrace(scan_position, point, is_endpoint_valid, do_update);

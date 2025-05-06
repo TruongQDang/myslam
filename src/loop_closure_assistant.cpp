@@ -58,8 +58,8 @@ void LoopClosureAssistant::publishGraph()
         for (const auto &vertex : vertices) {
                 const auto &pose = vertex.second->getObject()->getCorrectedPose();
                 m.id = vertex.first;
-                m.pose.position.x = pose.getX();
-                m.pose.position.y = pose.getY();
+                m.pose.position.x = pose.GetX();
+                m.pose.position.y = pose.GetY();
                 marray.markers.push_back(m);
         }
 
@@ -82,14 +82,14 @@ void LoopClosureAssistant::publishGraph()
                 int source_id = edge->getSource()->getObject()->getScanId();
                 const auto &pose0 = edge->getSource()->getObject()->getCorrectedPose();
                 geometry_msgs::msg::Point p0;
-                p0.x = pose0.getX();
-                p0.y = pose0.getY();
+                p0.x = pose0.GetX();
+                p0.y = pose0.GetY();
 
                 int target_id = edge->getTarget()->getObject()->getScanId();
                 const auto &pose1 = edge->getTarget()->getObject()->getCorrectedPose();
                 geometry_msgs::msg::Point p1;
-                p1.x = pose1.getX();
-                p1.y = pose1.getY();
+                p1.x = pose1.GetX();
+                p1.y = pose1.GetY();
 
                 edges_marker.points.push_back(p0);
                 edges_marker.points.push_back(p1);

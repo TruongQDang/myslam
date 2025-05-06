@@ -66,7 +66,7 @@ protected:
                 const bool &update_reprocessing_transform);
         void publishPose(
                 const karto::Pose2 &pose,
-                const Eigen::Matrix3d &cov,
+                const karto::Matrix3 &cov,
                 const rclcpp::Time &t);
         karto::LocalizedRangeScan *getLocalizedRangeScan(
                 karto::LaserRangeFinder *laser,

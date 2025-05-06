@@ -262,9 +262,9 @@ void CeresSolver::compute()
         karto::Pose2 pose;
         ConstGraphIterator iter = nodes_->begin();
         for (iter; iter != nodes_->end(); ++iter) {
-                pose.setX(iter->second(0));
-                pose.setY(iter->second(1));
-                pose.setHeading(iter->second(2));
+                pose.SetX(iter->second(0));
+                pose.SetY(iter->second(1));
+                pose.SetHeading(iter->second(2));
                 corrections_.push_back(std::make_pair(iter->first, pose));
         }
 }
@@ -279,7 +279,7 @@ void CeresSolver::addNode(karto::Vertex<karto::LocalizedRangeScan> *pVertex)
         }
 
         karto::Pose2 pose = pVertex->getObject()->getCorrectedPose();
-        Eigen::Vector3d pose2d(pose.getX(), pose.getY(), pose.getHeading());
+        Eigen::Vector3d pose2d(pose.GetX(), pose.GetY(), pose.GetHeading());
 
         const int id = pVertex->getObject()->getScanId();
 
@@ -319,9 +319,9 @@ void CeresSolver::addConstraint(karto::Edge<karto::LocalizedRangeScan> *pEdge)
         // extract transformation
         karto::LinkInfo *pLinkInfo = (karto::LinkInfo *)(pEdge->getLabel());
         karto::Pose2 diff = pLinkInfo->getPoseDifference();
-        Eigen::Vector3d pose2d(diff.getX(), diff.getY(), diff.getHeading());
+        Eigen::Vector3d pose2d(diff.GetX(), diff.GetY(), diff.GetHeading());
 
-        karto::Matrix3d precisionMatrix = pLinkInfo->getCovariance().inverse();
+        karto::Matrix3 precisionMatrix = pLinkInfo->getCovariance().Inverse();
         Eigen::Matrix3d information;
         information(0, 0) = precisionMatrix(0, 0);
         information(0, 1) = information(1, 0) = precisionMatrix(0, 1);

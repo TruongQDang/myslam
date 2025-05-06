@@ -483,8 +483,8 @@ bool MySlam::shouldProcessScan(
         }
 
         // check if moved enough between scans, within 10% for correction error
-        const double dist2 = last_pose.getSquaredDistance(pose);
-        double heading_diff = karto::math::NormalizeAngle(pose.getHeading() - last_pose.getHeading());
+        const double dist2 = last_pose.SquaredDistance(pose);
+        double heading_diff = karto::math::NormalizeAngle(pose.GetHeading() - last_pose.GetHeading());
         if (dist2 < 0.8 * min_dist2 && fabs(heading_diff) < 0.9 * min_heading || scan_count < 5) {
                 return false;
         }
@@ -507,8 +507,8 @@ karto::LocalizedRangeScan *MySlam::addScan(
         boost::mutex::scoped_lock lock(mapper_mutex_);
         bool processed = false;
 
-        Eigen::Matrix3d covariance;
-        covariance.setIdentity();
+        karto::Matrix3 covariance;
+        covariance.SetToIdentity();
 
         processed = mapper_->process(range_scan, &covariance);
 
@@ -542,10 +542,10 @@ tf2::Stamped<tf2::Transform> MySlam::setTransformFromPoses(
         // Compute the map->odom transform
         tf2::Stamped<tf2::Transform> odom_to_map;
         tf2::Quaternion q(0., 0., 0., 1.0);
-        q.setRPY(0., 0., corrected_pose.getHeading());
+        q.setRPY(0., 0., corrected_pose.GetHeading());
         tf2::Stamped<tf2::Transform> base_to_map(
-                tf2::Transform(q, tf2::Vector3(corrected_pose.getX(),
-                        corrected_pose.getY(), 0.0)).inverse(),
+                tf2::Transform(q, tf2::Vector3(corrected_pose.GetX(),
+                        corrected_pose.GetY(), 0.0)).inverse(),
                 tf2_ros::fromMsg(t), 
                 base_frame_);
         try
@@ -580,7 +580,7 @@ tf2::Stamped<tf2::Transform> MySlam::setTransformFromPoses(
 /*****************************************************************************/
 void MySlam::publishPose(
         const karto::Pose2 &pose,
-        const Eigen::Matrix3d &cov,
+        const karto::Matrix3 &cov,
         const rclcpp::Time &t)
 /*****************************************************************************/
 {
@@ -589,8 +589,8 @@ void MySlam::publishPose(
         pose_msg.header.frame_id = map_frame_;
 
         tf2::Quaternion q(0., 0., 0., 1.0);
-        q.setRPY(0., 0., pose.getHeading());
-        tf2::Transform transform(q, tf2::Vector3(pose.getX(), pose.getY(), 0.0));
+        q.setRPY(0., 0., pose.GetHeading());
+        tf2::Transform transform(q, tf2::Vector3(pose.GetX(), pose.GetY(), 0.0));
         tf2::toMsg(transform, pose_msg.pose.pose);
 
         pose_msg.pose.covariance[0] = cov(0, 0) * position_covariance_scale_; // x

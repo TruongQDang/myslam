@@ -3,7 +3,9 @@
 namespace karto
 {
 
+/*****************************************************************************/       
 void CellUpdater::operator()(uint32_t index)
+/*****************************************************************************/
 {
         uint8_t *data_ptr = occupancy_grid_->getDataPointer();
         uint32_t *cell_pass_cnt_ptr = occupancy_grid_->cell_pass_cnt_->getDataPointer();

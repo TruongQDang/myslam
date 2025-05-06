@@ -105,6 +105,20 @@
                 "shared_mutex": "cpp",
                 "stop_token": "cpp",
                 "typeindex": "cpp",
-                "nonlinearoptimization": "cpp"
+                "nonlinearoptimization": "cpp",
+                "csetjmp": "cpp",
+                "any": "cpp",
+                "barrier": "cpp",
+                "cfenv": "cpp",
+                "coroutine": "cpp",
+                "cuchar": "cpp",
+                "expected": "cpp",
+                "source_location": "cpp",
+                "fstream": "cpp",
+                "latch": "cpp",
+                "semaphore": "cpp",
+                "spanstream": "cpp",
+                "stdfloat": "cpp",
+                "syncstream": "cpp"
         }
 }

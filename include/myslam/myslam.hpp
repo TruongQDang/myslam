@@ -50,6 +50,7 @@ protected:
         void setParams();
         void setROSInterfaces();
         void setSolver();
+        void configureMapper();
 
         // callbacks
         void laserCallback(sensor_msgs::msg::LaserScan::ConstSharedPtr scan);

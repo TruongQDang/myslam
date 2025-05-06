@@ -37,10 +37,12 @@ MySlam::MySlam(rclcpp::NodeOptions options)
 void MySlam::laserCallback(sensor_msgs::msg::LaserScan::ConstSharedPtr scan)
 /*****************************************************************************/
 {
+        RCLCPP_INFO(get_logger(), "enterLaserCallback");
         // get transform from odom to base
         scan_header_ = scan->header;
         karto::Pose2 odom_pose;
         if (!pose_helper_->getPose(odom_pose, scan->header.stamp, odom_frame_, base_frame_)) {
+                RCLCPP_INFO(get_logger(), "Failed to compute odom pose");
                 RCLCPP_WARN(get_logger(), "Failed to compute odom pose");
                 return;
         }
@@ -49,6 +51,8 @@ void MySlam::laserCallback(sensor_msgs::msg::LaserScan::ConstSharedPtr scan)
         if (laser_ == nullptr) {
                 makeLaser(scan);
         }
+
+        RCLCPP_INFO(get_logger(), "about to enter should processscan");
 
         if (shouldProcessScan(scan, odom_pose)) {
                 addScan(scan, odom_pose);
@@ -63,7 +67,7 @@ CallbackReturn MySlam::on_configure(const rclcpp_lifecycle::State &)
 
         first_measurement_ = true;
         mapper_ = std::make_unique<karto::Mapper>();
-        mapper_->configure(shared_from_this());
+        configureMapper();
         setSolver();
 
         setParams();
@@ -361,6 +365,322 @@ void MySlam::setSolver()
 }
 
 /*****************************************************************************/
+void MySlam::configureMapper()
+/*****************************************************************************/
+{
+        bool use_scan_matching = true;
+        if (!this->has_parameter("use_scan_matching"))
+        {
+                this->declare_parameter("use_scan_matching", use_scan_matching);
+        }
+        this->get_parameter("use_scan_matching", use_scan_matching);
+        mapper_->setParamUseScanMatching(use_scan_matching);
+
+        bool use_scan_barycenter = true;
+        if (!this->has_parameter("use_scan_barycenter"))
+        {
+                this->declare_parameter("use_scan_barycenter", use_scan_barycenter);
+        }
+        this->get_parameter("use_scan_barycenter", use_scan_barycenter);
+        mapper_->setParamUseScanBarycenter(use_scan_barycenter);
+
+        double minimum_travel_distance = 0.5;
+        if (!this->has_parameter("minimum_travel_distance"))
+        {
+                this->declare_parameter("minimum_travel_distance", minimum_travel_distance);
+        }
+        this->get_parameter("minimum_travel_distance", minimum_travel_distance);
+        mapper_->setParamMinimumTravelDistance(minimum_travel_distance);
+
+        double minimum_travel_heading = 0.5;
+        if (!this->has_parameter("minimum_travel_heading"))
+        {
+                this->declare_parameter("minimum_travel_heading", minimum_travel_heading);
+        }
+        this->get_parameter("minimum_travel_heading", minimum_travel_heading);
+        mapper_->setParamMinimumTravelHeading(minimum_travel_heading);
+
+        int scan_buffer_size = 10;
+        if (!this->has_parameter("scan_buffer_size"))
+        {
+                this->declare_parameter("scan_buffer_size", scan_buffer_size);
+        }
+        this->get_parameter("scan_buffer_size", scan_buffer_size);
+        if (scan_buffer_size <= 0)
+        {
+                RCLCPP_WARN(this->get_logger(),
+                            "You've set scan_buffer_size to be a value smaller than zero,"
+                            "this isn't allowed so it will be set to default value 10.");
+                scan_buffer_size = 10;
+        }
+        mapper_->setParamScanBufferSize(scan_buffer_size);
+
+        double scan_buffer_maximum_scan_distance = 10;
+        if (!this->has_parameter("scan_buffer_maximum_scan_distance"))
+        {
+                this->declare_parameter("scan_buffer_maximum_scan_distance", scan_buffer_maximum_scan_distance);
+        }
+        this->get_parameter("scan_buffer_maximum_scan_distance", scan_buffer_maximum_scan_distance);
+        if (karto::math::Square(scan_buffer_maximum_scan_distance) <= 1e-06)
+        {
+                RCLCPP_WARN(this->get_logger(),
+                            "You've set scan_buffer_maximum_scan_distance to be a value whose square is smaller than 1e-06,"
+                            "this isn't allowed so it will be set to default value 10.");
+                scan_buffer_maximum_scan_distance = 10;
+        }
+        mapper_->setParamScanBufferMaximumScanDistance(scan_buffer_maximum_scan_distance);
+
+        double link_match_minimum_response_fine = 0.1;
+        if (!this->has_parameter("link_match_minimum_response_fine"))
+        {
+                this->declare_parameter("link_match_minimum_response_fine", link_match_minimum_response_fine);
+        }
+        this->get_parameter("link_match_minimum_response_fine", link_match_minimum_response_fine);
+        mapper_->setParamLinkMatchMinimumResponseFine(link_match_minimum_response_fine);
+
+        double link_scan_maximum_distance = 1.5;
+        if (!this->has_parameter("link_scan_maximum_distance"))
+        {
+                this->declare_parameter("link_scan_maximum_distance", link_scan_maximum_distance);
+        }
+        this->get_parameter("link_scan_maximum_distance", link_scan_maximum_distance);
+        mapper_->setParamLinkScanMaximumDistance(link_scan_maximum_distance);
+
+        double loop_search_maximum_distance = 3.0;
+        if (!this->has_parameter("loop_search_maximum_distance"))
+        {
+                this->declare_parameter("loop_search_maximum_distance", loop_search_maximum_distance);
+        }
+        this->get_parameter("loop_search_maximum_distance", loop_search_maximum_distance);
+        mapper_->setParamLoopSearchMaximumDistance(loop_search_maximum_distance);
+
+        bool do_loop_closing = true;
+        if (!this->has_parameter("do_loop_closing"))
+        {
+                this->declare_parameter("do_loop_closing", do_loop_closing);
+        }
+        this->get_parameter("do_loop_closing", do_loop_closing);
+        mapper_->setParamDoLoopClosing(do_loop_closing);
+
+        int loop_match_minimum_chain_size = 10;
+        if (!this->has_parameter("loop_match_minimum_chain_size"))
+        {
+                this->declare_parameter("loop_match_minimum_chain_size", loop_match_minimum_chain_size);
+        }
+        this->get_parameter("loop_match_minimum_chain_size", loop_match_minimum_chain_size);
+        mapper_->setParamLoopMatchMinimumChainSize(loop_match_minimum_chain_size);
+
+        double loop_match_maximum_variance_coarse = 3.0;
+        if (!this->has_parameter("loop_match_maximum_variance_coarse"))
+        {
+                this->declare_parameter(
+                    "loop_match_maximum_variance_coarse",
+                    loop_match_maximum_variance_coarse);
+        }
+        this->get_parameter("loop_match_maximum_variance_coarse", loop_match_maximum_variance_coarse);
+        mapper_->setParamLoopMatchMaximumVarianceCoarse(loop_match_maximum_variance_coarse);
+
+        double loop_match_minimum_response_coarse = 0.35;
+        if (!this->has_parameter("loop_match_minimum_response_coarse"))
+        {
+                this->declare_parameter(
+                    "loop_match_minimum_response_coarse",
+                    loop_match_minimum_response_coarse);
+        }
+        this->get_parameter("loop_match_minimum_response_coarse", loop_match_minimum_response_coarse);
+        mapper_->setParamLoopMatchMinimumResponseCoarse(loop_match_minimum_response_coarse);
+
+        double loop_match_minimum_response_fine = 0.45;
+        if (!this->has_parameter("loop_match_minimum_response_fine"))
+        {
+                this->declare_parameter("loop_match_minimum_response_fine", loop_match_minimum_response_fine);
+        }
+        this->get_parameter("loop_match_minimum_response_fine", loop_match_minimum_response_fine);
+        mapper_->setParamLoopMatchMinimumResponseFine(loop_match_minimum_response_fine);
+
+        // Setting Correlation Parameters
+        double correlation_search_space_dimension = 0.5;
+        if (!this->has_parameter("correlation_search_space_dimension"))
+        {
+                this->declare_parameter(
+                    "correlation_search_space_dimension",
+                    correlation_search_space_dimension);
+        }
+        this->get_parameter("correlation_search_space_dimension", correlation_search_space_dimension);
+        if (correlation_search_space_dimension <= 0)
+        {
+                RCLCPP_WARN(this->get_logger(),
+                            "You've set correlation_search_space_dimension to be negative,"
+                            "this isn't allowed so it will be set to default value 0.5.");
+                correlation_search_space_dimension = 0.5;
+        }
+        mapper_->setParamCorrelationSearchSpaceDimension(correlation_search_space_dimension);
+
+        double correlation_search_space_resolution = 0.01;
+        if (!this->has_parameter("correlation_search_space_resolution"))
+        {
+                this->declare_parameter(
+                    "correlation_search_space_resolution",
+                    correlation_search_space_resolution);
+        }
+        this->get_parameter("correlation_search_space_resolution", correlation_search_space_resolution);
+        if (correlation_search_space_resolution <= 0)
+        {
+                RCLCPP_WARN(this->get_logger(),
+                            "You've set correlation_search_space_resolution to be negative,"
+                            "this isn't allowed so it will be set to default value 0.01.");
+                correlation_search_space_resolution = 0.01;
+        }
+        mapper_->setParamCorrelationSearchSpaceResolution(correlation_search_space_resolution);
+
+        double correlation_search_space_smear_deviation = 0.1;
+        if (!this->has_parameter("correlation_search_space_smear_deviation"))
+        {
+                this->declare_parameter(
+                    "correlation_search_space_smear_deviation",
+                    correlation_search_space_smear_deviation);
+        }
+        this->get_parameter(
+            "correlation_search_space_smear_deviation",
+            correlation_search_space_smear_deviation);
+        if (correlation_search_space_smear_deviation <= 0)
+        {
+                RCLCPP_WARN(this->get_logger(),
+                            "You've set correlation_search_space_smear_deviation to be negative,"
+                            "this isn't allowed so it will be set to default value 0.1.");
+                correlation_search_space_smear_deviation = 0.1;
+        }
+        mapper_->setParamCorrelationSearchSpaceSmearDeviation(correlation_search_space_smear_deviation);
+
+        // Setting Correlation Parameters, Loop Closure Parameters
+        double loop_search_space_dimension = 8.0;
+        if (!this->has_parameter("loop_search_space_dimension"))
+        {
+                this->declare_parameter("loop_search_space_dimension", loop_search_space_dimension);
+        }
+        this->get_parameter("loop_search_space_dimension", loop_search_space_dimension);
+        if (loop_search_space_dimension <= 0)
+        {
+                RCLCPP_WARN(this->get_logger(),
+                            "You've set loop_search_space_dimension to be negative,"
+                            "this isn't allowed so it will be set to default value 8.0.");
+                loop_search_space_dimension = 8.0;
+        }
+        mapper_->setParamLoopSearchSpaceDimension(loop_search_space_dimension);
+
+        double loop_search_space_resolution = 0.05;
+        if (!this->has_parameter("loop_search_space_resolution"))
+        {
+                this->declare_parameter("loop_search_space_resolution", loop_search_space_resolution);
+        }
+        this->get_parameter("loop_search_space_resolution", loop_search_space_resolution);
+        if (loop_search_space_resolution <= 0)
+        {
+                RCLCPP_WARN(this->get_logger(),
+                            "You've set loop_search_space_resolution to be negative,"
+                            "this isn't allowed so it will be set to default value 0.05.");
+                loop_search_space_resolution = 0.05;
+        }
+        mapper_->setParamLoopSearchSpaceResolution(loop_search_space_resolution);
+
+        double loop_search_space_smear_deviation = 0.03;
+        if (!this->has_parameter("loop_search_space_smear_deviation"))
+        {
+                this->declare_parameter("loop_search_space_smear_deviation", loop_search_space_smear_deviation);
+        }
+        this->get_parameter("loop_search_space_smear_deviation", loop_search_space_smear_deviation);
+        if (loop_search_space_smear_deviation <= 0)
+        {
+                RCLCPP_WARN(this->get_logger(),
+                            "You've set loop_search_space_smear_deviation to be negative,"
+                            "this isn't allowed so it will be set to default value 0.03.");
+                loop_search_space_smear_deviation = 0.03;
+        }
+        mapper_->setParamLoopSearchSpaceSmearDeviation(loop_search_space_smear_deviation);
+
+        // Setting Scan Matcher Parameters
+        double distance_variance_penalty = 0.5;
+        if (!this->has_parameter("distance_variance_penalty"))
+        {
+                this->declare_parameter("distance_variance_penalty", distance_variance_penalty);
+        }
+        this->get_parameter("distance_variance_penalty", distance_variance_penalty);
+        mapper_->setParamDistanceVariancePenalty(distance_variance_penalty);
+
+        double angle_variance_penalty = 1.0;
+        if (!this->has_parameter("angle_variance_penalty"))
+        {
+                this->declare_parameter("angle_variance_penalty", angle_variance_penalty);
+        }
+        this->get_parameter("angle_variance_penalty", angle_variance_penalty);
+        mapper_->setParamAngleVariancePenalty(angle_variance_penalty);
+
+        double fine_search_angle_offset = 0.00349;
+        if (!this->has_parameter("fine_search_angle_offset"))
+        {
+                this->declare_parameter("fine_search_angle_offset", fine_search_angle_offset);
+        }
+        this->get_parameter("fine_search_angle_offset", fine_search_angle_offset);
+        mapper_->setParamFineSearchAngleOffset(fine_search_angle_offset);
+
+        double coarse_search_angle_offset = 0.349;
+        if (!this->has_parameter("coarse_search_angle_offset"))
+        {
+                this->declare_parameter("coarse_search_angle_offset", coarse_search_angle_offset);
+        }
+        this->get_parameter("coarse_search_angle_offset", coarse_search_angle_offset);
+        mapper_->setParamCoarseSearchAngleOffset(coarse_search_angle_offset);
+
+        double coarse_angle_resolution = 0.0349;
+        if (!this->has_parameter("coarse_angle_resolution"))
+        {
+                this->declare_parameter("coarse_angle_resolution", coarse_angle_resolution);
+        }
+        this->get_parameter("coarse_angle_resolution", coarse_angle_resolution);
+        mapper_->setParamCoarseAngleResolution(coarse_angle_resolution);
+
+        double minimum_angle_penalty = 0.9;
+        if (!this->has_parameter("minimum_angle_penalty"))
+        {
+                this->declare_parameter("minimum_angle_penalty", minimum_angle_penalty);
+        }
+        this->get_parameter("minimum_angle_penalty", minimum_angle_penalty);
+        mapper_->setParamMinimumAnglePenalty(minimum_angle_penalty);
+
+        double minimum_distance_penalty = 0.05;
+        if (!this->has_parameter("minimum_distance_penalty"))
+        {
+                this->declare_parameter("minimum_distance_penalty", minimum_distance_penalty);
+        }
+        this->get_parameter("minimum_distance_penalty", minimum_distance_penalty);
+        mapper_->setParamMinimumDistancePenalty(minimum_distance_penalty);
+
+        bool use_response_expansion = true;
+        if (!this->has_parameter("use_response_expansion"))
+        {
+                this->declare_parameter("use_response_expansion", use_response_expansion);
+        }
+        this->get_parameter("use_response_expansion", use_response_expansion);
+        mapper_->setParamUseResponseExpansion(use_response_expansion);
+
+        int min_pass_through = 2;
+        if (!this->has_parameter("min_pass_through"))
+        {
+                this->declare_parameter("min_pass_through", min_pass_through);
+        }
+        this->get_parameter("min_pass_through", min_pass_through);
+        mapper_->setParamMinPassThrough(min_pass_through);
+
+        double occupancy_threshold = 0.1;
+        if (!this->has_parameter("occupancy_threshold"))
+        {
+                this->declare_parameter("occupancy_threshold", occupancy_threshold);
+        }
+        this->get_parameter("occupancy_threshold", occupancy_threshold);
+        mapper_->setParamOccupancyThreshold(occupancy_threshold);
+}
+
+/*****************************************************************************/
 void MySlam::publishTransformLoop(const double &transform_publish_period)
 /*****************************************************************************/
 {
@@ -404,8 +724,7 @@ void MySlam::publishVisualizations()
         og.header.frame_id = map_frame_;
 
         double map_update_interval = 5.0;
-        if (!this->has_parameter("map_update_interval"))
-        {
+        if (!this->has_parameter("map_update_interval")) {
                 this->declare_parameter("map_update_interval", map_update_interval);
         }
         map_update_interval = this->get_parameter("map_update_interval").as_double();
@@ -458,9 +777,9 @@ bool MySlam::shouldProcessScan(
         static karto::Pose2 last_pose;
         static rclcpp::Time last_scan_time = rclcpp::Time(0.);
         static double min_dist2 =
-                mapper_->getMinimumTravelDistance() * 
-                mapper_->getMinimumTravelDistance();
-        static double min_heading = mapper_->getMinimumTravelHeading();
+                mapper_->getParamMinimumTravelDistance() * 
+                mapper_->getParamMinimumTravelDistance();
+        static double min_heading = mapper_->getParamMinimumTravelHeading();
         static int scan_count = 0;
         scan_count++;
         
@@ -483,8 +802,8 @@ bool MySlam::shouldProcessScan(
         }
 
         // check if moved enough between scans, within 10% for correction error
-        const double dist2 = last_pose.SquaredDistance(pose);
-        double heading_diff = karto::math::NormalizeAngle(pose.GetHeading() - last_pose.GetHeading());
+        const double dist2 = last_pose.computeSquaredDistance(pose);
+        double heading_diff = karto::math::NormalizeAngle(pose.getHeading() - last_pose.getHeading());
         if (dist2 < 0.8 * min_dist2 && fabs(heading_diff) < 0.9 * min_heading || scan_count < 5) {
                 return false;
         }
@@ -501,6 +820,7 @@ karto::LocalizedRangeScan *MySlam::addScan(
         karto::Pose2 &odom_pose)
 /*****************************************************************************/
 {
+        RCLCPP_INFO(get_logger(), "enter addScan");
         karto::LocalizedRangeScan *range_scan = getLocalizedRangeScan(laser_.get(), scan, odom_pose);
 
         // Add the localized range scan to the mapper
@@ -508,7 +828,7 @@ karto::LocalizedRangeScan *MySlam::addScan(
         bool processed = false;
 
         karto::Matrix3 covariance;
-        covariance.SetToIdentity();
+        covariance.setToIdentity();
 
         processed = mapper_->process(range_scan, &covariance);
 
@@ -542,10 +862,10 @@ tf2::Stamped<tf2::Transform> MySlam::setTransformFromPoses(
         // Compute the map->odom transform
         tf2::Stamped<tf2::Transform> odom_to_map;
         tf2::Quaternion q(0., 0., 0., 1.0);
-        q.setRPY(0., 0., corrected_pose.GetHeading());
+        q.setRPY(0., 0., corrected_pose.getHeading());
         tf2::Stamped<tf2::Transform> base_to_map(
-                tf2::Transform(q, tf2::Vector3(corrected_pose.GetX(),
-                        corrected_pose.GetY(), 0.0)).inverse(),
+                tf2::Transform(q, tf2::Vector3(corrected_pose.getX(),
+                        corrected_pose.getY(), 0.0)).inverse(),
                 tf2_ros::fromMsg(t), 
                 base_frame_);
         try
@@ -589,8 +909,8 @@ void MySlam::publishPose(
         pose_msg.header.frame_id = map_frame_;
 
         tf2::Quaternion q(0., 0., 0., 1.0);
-        q.setRPY(0., 0., pose.GetHeading());
-        tf2::Transform transform(q, tf2::Vector3(pose.GetX(), pose.GetY(), 0.0));
+        q.setRPY(0., 0., pose.getHeading());
+        tf2::Transform transform(q, tf2::Vector3(pose.getX(), pose.getY(), 0.0));
         tf2::toMsg(transform, pose_msg.pose.pose);
 
         pose_msg.pose.covariance[0] = cov(0, 0) * position_covariance_scale_; // x
@@ -609,9 +929,12 @@ karto::LocalizedRangeScan *MySlam::getLocalizedRangeScan(
         karto::Pose2 &odom_pose)
 /*****************************************************************************/
 {
-        // convert vector<float> to vector<double>
-        karto::RangeReadingsVector readings(scan->ranges.size());
-        std::copy(scan->ranges.begin(), scan->ranges.end(), readings.begin());
+        // convert vector<float> to vector<double> for karto
+        karto::RangeReadingsVector readings;
+        readings.reserve(scan->ranges.size());
+        for (std::vector<float>::const_iterator iter = scan->ranges.begin(); iter != scan->ranges.end(); iter++) {
+                readings.push_back(static_cast<double>(*iter));
+        }
 
         karto::LocalizedRangeScan *range_scan = new karto::LocalizedRangeScan(laser, readings);
         range_scan->setOdometricPose(odom_pose);
@@ -627,15 +950,28 @@ void MySlam::makeLaser(const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan)
 {
         laser_ = std::make_unique<karto::LaserRangeFinder>();
 
-        karto::Pose2 T_robot_laser;
-        pose_helper_->getPose(T_robot_laser, scan->header.stamp, base_frame_, scan->header.frame_id);
+        // set pose_robot_laser
+        karto::Pose2 offset_pose;
+        pose_helper_->getPose(offset_pose, scan->header.stamp, base_frame_, scan->header.frame_id);
+        laser_->setOffsetPose(offset_pose);
+
+        bool is_360_lidar = false;
+        const float angular_range = std::fabs(scan->angle_max - scan->angle_min);
+        if (std::fabs(angular_range - 2.0 * M_PI) < (scan->angle_increment - (std::numeric_limits<float>::epsilon() * 2.0f * M_PI))) {
+                is_360_lidar = true;
+        }
+
+        // Check if we have a 360 laser, but incorrectly setup as to produce
+        // measurements in range [0, 360] rather than appropriately as [0, 360)
+        if (angular_range > 6.10865 /*350 deg*/ && std::round(angular_range / scan->angle_increment) + 1 == scan->ranges.size()) {
+                is_360_lidar = false;
+        }
 
         double max_laser_range = 25;
         if (!this->has_parameter("max_laser_range")) {
                 this->declare_parameter("max_laser_range", max_laser_range);
         }
         max_laser_range = this->get_parameter("max_laser_range").as_double();
-
         if (max_laser_range <= 0) {
                 RCLCPP_WARN(
                         get_logger(),
@@ -644,7 +980,6 @@ void MySlam::makeLaser(const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan)
                         scan->range_max);
                 max_laser_range = scan->range_max;
         }
-
         if (max_laser_range > scan->range_max) {
                 RCLCPP_WARN(
                         get_logger(),
@@ -653,12 +988,14 @@ void MySlam::makeLaser(const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan)
                         max_laser_range, scan->range_max);
                 max_laser_range = scan->range_max;
         }
-
-        laser_->setRangeThreshold(max_laser_range);
+        
         laser_->setFrameId(scan->header.frame_id);
-        laser_->setOffsetPose(T_robot_laser);
+
         laser_->setMinimumRange(scan->range_min);
         laser_->setMaximumRange(scan->range_max);
+        laser_->setRangeThreshold(max_laser_range);
+
+        laser_->setIs360Laser(is_360_lidar);
         laser_->setMinimumAngle(scan->angle_min);
         laser_->setMaximumAngle(scan->angle_max);
         laser_->setAngularResolution(scan->angle_increment);

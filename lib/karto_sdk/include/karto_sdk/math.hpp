@@ -17,9 +17,10 @@ const double KT_TOLERANCE = 1e-06;
 /**
  * Platform independent pi definitions
  */
-const double KT_PI_180 = 0.01745329251994329577;
 const double KT_PI = 3.14159265358979323846;
-const double KT_2PI = 6.28318530717958647692;
+const double KT_PI_180 = 0.01745329251994329577; // PI / 180
+const double KT_2PI = 6.28318530717958647692;     // 2 * PI
+const double KT_180_PI = 57.29577951308232087685; // 180 / PI
 
 /**
  * Lets define max value of kt_int32s (int32_t) to use it to mark invalid scans
@@ -84,6 +85,43 @@ inline bool DoubleEqual(double a, double b)
 }
 
 /**
+ * Binary minimum function
+ * @param value1
+ * @param value2
+ * @return the lesser of value1 and value2
+ */
+template <typename T>
+inline const T &Minimum(const T &value1, const T &value2)
+{
+        return value1 < value2 ? value1 : value2;
+}
+
+/**
+ * Binary maximum function
+ * @param value1
+ * @param value2
+ * @return the greater of value1 and value2
+ */
+template <typename T>
+inline const T &Maximum(const T &value1, const T &value2)
+{
+        return value1 > value2 ? value1 : value2;
+}
+
+/**
+ * Clips a number to the specified minimum and maximum values.
+ * @param n number to be clipped
+ * @param minValue minimum value
+ * @param maxValue maximum value
+ * @return the clipped value
+ */
+template <typename T>
+inline const T &Clip(const T &n, const T &minValue, const T &maxValue)
+{
+        return Minimum(Maximum(n, minValue), maxValue);
+}
+
+/**
  * Converts degrees into radians
  * @param degrees
  * @return radian equivalent of degrees
@@ -91,6 +129,16 @@ inline bool DoubleEqual(double a, double b)
 inline double DegreesToRadians(double degrees)
 {
         return degrees * KT_PI_180;
+}
+
+/**
+ * Converts radians into degrees
+ * @param radians
+ * @return degree equivalent of radians
+ */
+inline double RadiansToDegrees(double radians)
+{
+        return radians * KT_180_PI;
 }
 
 /**

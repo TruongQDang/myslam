@@ -20,9 +20,11 @@ namespace karto
 
 typedef std::vector<LocalizedRangeScan *> LocalizedRangeScanVector;
 typedef std::map<int, LocalizedRangeScan *> LocalizedRangeScanMap;
-typedef std::vector<Vector2<double>> PointVectorDouble;
 
-//////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+
 template <typename T>
 class Vertex;
 class LinkInfo;
@@ -33,7 +35,7 @@ class Edge
 private:
         Vertex<T> *source_;
         Vertex<T> *target_;
-        LinkInfo *label_;
+        std::unique_ptr<LinkInfo> label_;
 
 public:
         Edge(Vertex<T> *source, Vertex<T> *target)
@@ -57,11 +59,11 @@ public:
 
         /**
          * Sets the link payload
-         * @param pLabel
+         * @param label
          */
-        inline void setLabel(LinkInfo *label)
+        inline void setLabel(std::unique_ptr<LinkInfo> label)
         {
-                label_ = label;
+                label_ = std::move(label);
         }
 
         /**
@@ -70,7 +72,7 @@ public:
          */
         inline LinkInfo *getLabel()
         {
-                return label_;
+                return label_.get();
         }
 
         /**
@@ -152,7 +154,7 @@ public:
 private:
         /**
          * Adds the given edge to this vertex's edge list
-         * @param pEdge edge to add
+         * @param edge edge to add
          */
         inline void addEdge(Edge<T> *edge)
         {
@@ -161,13 +163,9 @@ private:
 
 }; // Vertex
 
-
-
-//////////////////////////////////////////////////////////////
-
-
-
-//////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
 
 class ScanManager
 {
@@ -204,8 +202,7 @@ public:
                 std::vector<LocalizedRangeScan *> scans;
                 scans.reserve(scans_.size());
 
-                for (const auto &scan : scans_)
-                {
+                for (const auto &scan : scans_) {
                         scans.push_back(scan.second);
                 }
 
@@ -222,7 +219,7 @@ public:
                 Pose2 back_scan_pose = running_scans_.back()->getSensorPose();
 
                 // cap vector size and remove all scans from front of vector that are too far from end of vector
-                double squared_distance = front_scan_pose.SquaredDistance(back_scan_pose);
+                double squared_distance = front_scan_pose.computeSquaredDistance(back_scan_pose);
                 while (running_scans_.size() > running_buffer_maximum_size_ ||
                        squared_distance > math::Square(running_buffer_maximum_distance_) - KT_TOLERANCE) {
                         // remove front of running scans
@@ -231,7 +228,7 @@ public:
                         // recompute stats of running scans
                         front_scan_pose = running_scans_.front()->getSensorPose();
                         back_scan_pose = running_scans_.back()->getSensorPose();
-                        squared_distance = front_scan_pose.SquaredDistance(back_scan_pose);
+                        squared_distance = front_scan_pose.computeSquaredDistance(back_scan_pose);
                 }
         }
 
@@ -241,9 +238,8 @@ public:
         }
 
         /**
-         * Gets scan from given device with given ID
-         * @param rSensorName
-         * @param scanNum
+         * Gets scan with given ID
+         * @param scan_index
          * @return localized range scan
          */
         LocalizedRangeScan *getScan(int32_t scan_index)
@@ -291,7 +287,9 @@ public:
 
 }; // ScanManager
 
-///////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
 
 // A LinkInfo object contains the requisite information for the "spring"
 // that links two scans together--the pose difference and the uncertainty
@@ -310,31 +308,31 @@ public:
         {
         }
 
-        LinkInfo(const Pose2 &rPose1, const Pose2 &rPose2, const Matrix3 &rCovariance)
+        LinkInfo(const Pose2 &pose1, const Pose2 &pose2, const Matrix3 &rCovariance)
         {
-                Update(rPose1, rPose2, rCovariance);
+                update(pose1, pose2, rCovariance);
         }
 public:
         /**
          * Changes the link information to be the given parameters
-         * @param rPose1
-         * @param rPose2
+         * @param pose1
+         * @param pose2
          * @param rCovariance
          */
-        void Update(const Pose2 &pose1, const Pose2 &pose2, const Matrix3 &covariance)
+        void update(const Pose2 &pose1, const Pose2 &pose2, const Matrix3 &covariance)
         {
                 pose1_ = pose1;
                 pose2_ = pose2;
 
                 // transform second pose into the coordinate system of the first pose
                 Transform transform(pose1, Pose2());
-                pose_difference_ = transform.TransformPose(pose2);
+                pose_difference_ = transform.transformPose(pose2);
 
                 // transform covariance into reference of first pose
                 Matrix3 rotationMatrix;
-                rotationMatrix.FromAxisAngle(0, 0, 1, -pose1.GetHeading());
+                rotationMatrix.fromAxisAngle(0, 0, 1, -pose1.getHeading());
 
-                covariance_ = rotationMatrix * covariance * rotationMatrix.Transpose();
+                covariance_ = rotationMatrix * covariance * rotationMatrix.transpose();
         }
 
         /**
@@ -356,21 +354,9 @@ public:
         }
 }; // LinkInfo
 
-///////////////////////////////////////////////////////////////////////
-
-/**
- * Represents an object in a graph
- */
-
-
-///////////////////////////////////////////////////////////////////////
-
-/**
- * Represents an edge in a graph
- */
-
-
-///////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
 
 template<typename T>
 class Graph
@@ -387,8 +373,7 @@ public:
 public:
         /**
          * Adds and indexes the given vertex into the map using the given name
-         * @param rName
-         * @param pVertex
+         * @param vertex
          */
         inline void addVertex(std::unique_ptr<Vertex<T>> vertex)
         {
@@ -398,7 +383,7 @@ public:
 
         /**
          * Adds an edge to the graph
-         * @param pEdge
+         * @param edge
          */
         inline void addEdge(std::unique_ptr<Edge<T>> edge)
         {
@@ -425,7 +410,9 @@ public:
 
 }; // Graph
 
-///////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
 
 class CorrelationGrid : public Grid<uint8_t>
 {
@@ -504,8 +491,8 @@ public:
          */
         virtual int32_t getGridIndex(const Vector2<int32_t> &grid, bool boundary_check = true) const
         {
-                int32_t x = grid.GetX() + roi_.getX();
-                int32_t y = grid.GetY() + roi_.getY();
+                int32_t x = grid.getX() + roi_.getX();
+                int32_t y = grid.getY() + roi_.getY();
 
                 return Grid<uint8_t>::getGridIndex(Vector2<int32_t>(x, y), boundary_check);
         }
@@ -528,7 +515,7 @@ public:
                 // apply kernel
                 for (int32_t j = -half_kernel; j <= half_kernel; j++) {
                         uint8_t *grid_adr = getDataPointer(
-                                Vector2<int32_t>(grid_point.GetX(), grid_point.GetY() + j));
+                                Vector2<int32_t>(grid_point.getX(), grid_point.getY() + j));
 
                         int32_t kernel_constant = (half_kernel) + kernel_size_ * (j + half_kernel);
 
@@ -621,8 +608,10 @@ protected:
 
 }; // CorrelationGrid
 
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
 
-///////////////////////////////////////////////////////////////////////
 class Mapper;
 
 class ScanMatcher
@@ -651,9 +640,9 @@ private:
 
         /**
          * Marks cells where scans' points hit as being occupied.  Can smear points as they are added.
-         * @param pScan scan whose points will mark cells in grid as being occupied
-         * @param viewPoint do not add points that belong to scans "opposite" the view point
-         * @param doSmear whether the points will be smeared
+         * @param scan scan whose points will mark cells in grid as being occupied
+         * @param viewpoint do not add points that belong to scans "opposite" the view point
+         * @param do_smear whether the points will be smeared
          */
         void addScan(
             LocalizedRangeScan *scan, const Vector2<double> &viewpoint,
@@ -661,8 +650,8 @@ private:
 
         /**
          * Compute which points in a scan are on the same side as the given viewpoint
-         * @param pScan
-         * @param rViewPoint
+         * @param scan
+         * @param viewpoint
          * @return points on the same side
          */
         PointVectorDouble findValidPoints(
@@ -671,8 +660,8 @@ private:
 
         /**
          * Get response at given position for given rotation (only look up valid points)
-         * @param angleIndex
-         * @param gridPositionIndex
+         * @param angle_index
+         * @param grid_position_index
          * @return response
          */
         double getResponse(uint32_t angle_index, int32_t grid_position_index) const;
@@ -712,12 +701,12 @@ public:
 
         /**
          * Match given scan against set of scans
-         * @param pScan scan being scan-matched
-         * @param rBaseScans set of scans whose points will mark cells in grid as being occupied
-         * @param rMean output parameter of mean (best pose) of match
-         * @param rCovariance output parameter of covariance of match
-         * @param doPenalize whether to penalize matches further from the search center
-         * @param doRefineMatch whether to do finer-grained matching if coarse match is good (default is true)
+         * @param scan scan being scan-matched
+         * @param base_scans set of scans whose points will mark cells in grid as being occupied
+         * @param mean output parameter of mean (best pose) of match
+         * @param covariance output parameter of covariance of match
+         * @param do_penalize whether to penalize matches further from the search center
+         * @param do_refine_match whether to do finer-grained matching if coarse match is good (default is true)
          * @return strength of response
          */
         template <class T = std::vector<LocalizedRangeScan *>>
@@ -732,16 +721,16 @@ public:
          * Finds the best pose for the scan centering the search in the correlation grid
          * at the given pose and search in the space by the vector and angular offsets
          * in increments of the given resolutions
-         * @param pScan scan to match against correlation grid
-         * @param rSearchCenter the center of the search space
-         * @param rSearchSpaceOffset searches poses in the area offset by this vector around search center
-         * @param rSearchSpaceResolution how fine a granularity to search in the search space
-         * @param searchAngleOffset searches poses in the angles offset by this angle around search center
-         * @param searchAngleResolution how fine a granularity to search in the angular search space
-         * @param doPenalize whether to penalize matches further from the search center
-         * @param rMean output parameter of mean (best pose) of match
-         * @param rCovariance output parameter of covariance of match
-         * @param doingFineMatch whether to do a finer search after coarse search
+         * @param scan scan to match against correlation grid
+         * @param search_center the center of the search space
+         * @param serch_space_offset searches poses in the area offset by this vector around search center
+         * @param search_space_resolution how fine a granularity to search in the search space
+         * @param search_angle_offset searches poses in the angles offset by this angle around search center
+         * @param search_angle_resolution how fine a granularity to search in the angular search space
+         * @param do_penalize whether to penalize matches further from the search center
+         * @param mean output parameter of mean (best pose) of match
+         * @param covariance output parameter of covariance of match
+         * @param doing_fine_match whether to do a finer search after coarse search
          * @return strength of response
          */
         double correlateScan(
@@ -758,11 +747,11 @@ public:
 
         /**
          * Computes the positional covariance of the best pose
-         * @param rBestPose
+         * @param bset_pose
          * @param bestResponse
-         * @param rSearchCenter
-         * @param rSearchSpaceOffset
-         * @param rSearchSpaceResolution
+         * @param search_center
+         * @param serch_space_offset
+         * @param search_space_resolution
          * @param searchAngleResolution
          * @param rCovariance
          */
@@ -777,12 +766,12 @@ public:
 
         /**
          * Computes the angular covariance of the best pose
-         * @param rBestPose
-         * @param bestResponse
-         * @param rSearchCenter
-         * @param searchAngleOffset
-         * @param searchAngleResolution
-         * @param rCovariance
+         * @param bset_pose
+         * @param best_response
+         * @param search_center
+         * @param search_angle_offset
+         * @param search_angle_resolution
+         * @param covariance
          */
         void computeAngularCovariance(
             const Pose2 &best_pose,
@@ -793,7 +782,10 @@ public:
             Matrix3 &covariance);
 }; // ScanMatcher
 
-///////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+
 template <typename T>
 class Visitor;
 
@@ -824,7 +816,9 @@ public:
 
 }; // GraphTraversal<T>
 
-///////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
 
 template<typename T>
 class BreadthFirstTraversal : public GraphTraversal<T>
@@ -844,8 +838,8 @@ public:
 public:
         /**
          * Traverse the graph starting with the given vertex; applies the visitor to visited nodes
-         * @param pStartVertex
-         * @param pVisitor
+         * @param start_vertex
+         * @param visitor
          * @return visited vertice scans
          */
         virtual std::vector<T *> traverseForScans(Vertex<T> *start_vertex, Visitor<T> *visitor)
@@ -862,8 +856,8 @@ public:
 
         /**
          * Traverse the graph starting with the given vertex; applies the visitor to visited nodes
-         * @param pStartVertex
-         * @param pVisitor
+         * @param start_vertex
+         * @param visitor
          * @return visited vertices
          */
         virtual std::vector<Vertex<T> *> traverseForVertices(
@@ -901,7 +895,9 @@ public:
 
 }; // BreadthFirstTraversal<T>
 
-///////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
 
 /**
  * Visitor class
@@ -918,7 +914,9 @@ public:
         virtual bool visit(Vertex<T> *vertex) = 0;
 }; // Visitor<T>
 
-///////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
 
 class NearScanVisitor : public Visitor<LocalizedRangeScan>
 {
@@ -939,7 +937,7 @@ public:
                 try {
                         LocalizedRangeScan *scan = vertex->getObject();
                         Pose2 pose = scan->getReferencePose(use_scan_barycenter_);
-                        double squared_distance = pose.SquaredDistance(center_pose_);
+                        double squared_distance = pose.computeSquaredDistance(center_pose_);
                         return squared_distance <= max_distance_squared_ - KT_TOLERANCE;
                 } catch (...) {
                         // relocalization vertex elements missing
@@ -949,7 +947,9 @@ public:
         }
 }; // NearScanVisitor
 
-///////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
 
 class MapperGraph : public Graph<LocalizedRangeScan>
 {
@@ -976,23 +976,23 @@ public:
 
         /**
          * Graph for graph SLAM
-         * @param pMapper
-         * @param rangeThreshold
+         * @param mapper
+         * @param range_threshold
          */
         MapperGraph(Mapper *mapper, double range_threshold);
 
         /**
          * Adds a vertex representing the given scan to the graph
-         * @param pScan
+         * @param scan
          */
         Vertex<LocalizedRangeScan> *addVertex(LocalizedRangeScan *scan);
 
         /**
          * Creates an edge between the source scan vertex and the target scan vertex if it
          * does not already exist; otherwise return the existing edge
-         * @param pSourceScan
-         * @param pTargetScan
-         * @param rIsNewEdge set to true if the edge is new
+         * @param source_scan
+         * @param target_scan
+         * @param is_new_edge set to true if the edge is new
          * @return edge between source and target scan vertices
          */
         Edge<LocalizedRangeScan> *addEdge(
@@ -1002,8 +1002,8 @@ public:
 
         /**
          * Link scan to last scan and nearby chains of scans
-         * @param pScan
-         * @param rCovariance uncertainty of match
+         * @param scan
+         * @param covariance uncertainty of match
          */
         void addEdges(LocalizedRangeScan *scan, const Matrix3 &covariance);
 
@@ -1017,7 +1017,7 @@ public:
 
         /**
          * Find "nearby" (no further than given distance away) scans through graph links
-         * @param pScan
+         * @param scan
          * @param maxDistance
          */
         LocalizedRangeScanVector findNearLinkedScans(LocalizedRangeScan *scan, double max_distance);
@@ -1025,10 +1025,10 @@ public:
 private:
         /**
          * Adds an edge between the two scans and labels the edge with the given mean and covariance
-         * @param pFromScan
-         * @param pToScan
-         * @param rMean
-         * @param rCovariance
+         * @param from_scan
+         * @param to_scan
+         * @param mean
+         * @param covariance
          */
         void linkScans(
             LocalizedRangeScan *from_scan,
@@ -1038,8 +1038,8 @@ private:
 
         /**
          * Finds the closest scan in the vector to the given pose
-         * @param rScans
-         * @param rPose
+         * @param scans
+         * @param pose
          */
         LocalizedRangeScan *getClosestScanToPose(
             const LocalizedRangeScanVector &scans,
@@ -1048,21 +1048,20 @@ private:
         /**
          * Tries to find a chain of scan from the given device starting at the
          * given scan index that could possibly close a loop with the given scan
-         * @param pScan
-         * @param rSensorName
-         * @param rStartNum
+         * @param scan
+         * @param start_num
          * @return chain that can possibly close a loop with given scan
          */
-        LocalizedRangeScanVector FindPossibleLoopClosure(
-            LocalizedRangeScan *pScan,
-            uint32_t &rStartNum);
+        LocalizedRangeScanVector findPossibleLoopClosure(
+            LocalizedRangeScan *scan,
+            uint32_t &start_num);
 
         /**
          * Link the chain of scans to the given scan by finding the closest scan in the chain to the given scan
-         * @param rChain
-         * @param pScan
-         * @param rMean
-         * @param rCovariance
+         * @param chain
+         * @param scan
+         * @param mean
+         * @param covariance
          */
         void linkChainToScan(
                 const LocalizedRangeScanVector &chain,
@@ -1072,9 +1071,9 @@ private:
 
         /**
          * Find nearby chains of scans and link them to scan if response is high enough
-         * @param pScan
-         * @param rMeans
-         * @param rCovariances
+         * @param scan
+         * @param means
+         * @param covariances
          */
         void linkNearChains(
             LocalizedRangeScan *scan, Pose2Vector &means,
@@ -1082,15 +1081,15 @@ private:
 
         /**
          * Find chains of scans that are close to given scan
-         * @param pScan
+         * @param scan
          * @return chains of scans
          */
         std::vector<LocalizedRangeScanVector> findNearChains(LocalizedRangeScan *scan);
 
         /**
          * Compute mean of poses weighted by covariances
-         * @param rMeans
-         * @param rCovariances
+         * @param means
+         * @param covariances
          * @return weighted mean
          */
         Pose2 computeWeightedMean(
@@ -1099,7 +1098,7 @@ private:
 
         /**
          * Gets the vertex associated with the given scan
-         * @param pScan
+         * @param scan
          * @return vertex of scan
          */
         inline Vertex<LocalizedRangeScan> *getVertex(LocalizedRangeScan *scan)
@@ -1119,7 +1118,9 @@ private:
 
 }; // MapperGraph
 
-///////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
 
 class ScanSolver
 {
@@ -1176,90 +1177,73 @@ public:
 
 }; // ScanSolver
 
-///////////////////////////////////////////////////////////////////////
-
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
 
 class Mapper 
 {
         friend class ScanMatcher;
         friend class MapperGraph;
-protected:
-        // state
-        bool initialized_;
 
-        // parameters
+protected:
+        bool initialized_;
+        std::unique_ptr<ScanManager> scan_manager_;
+        std::unique_ptr<ScanMatcher> sequential_scan_matcher_;
+        std::unique_ptr<MapperGraph> graph_;
+        std::unique_ptr<ScanSolver> scan_optimizer_;
+
+        /**
+         * When set to true, the mapper will use a scan matching algorithm. In most real-world situations
+         * this should be set to true so that the mapper algorithm can correct for noise and errors in
+         * odometry and scan data. In some simulator environments where the simulated scan and odometry
+         * data are very accurate, the scan matching algorithm can produce worse results. In those cases
+         * set this to false to improve results.
+         * Default value is true.
+         */
+        bool use_scan_matching_;
+
+        /**
+         * Default value is true.
+         */
+        bool use_scan_barycenter_;
+
+        /**
+         * Sets the minimum travel between scans.  If a new scan's position is more than minimum_travel_distance_
+         * from the previous scan, the mapper will use the data from the new scan. Otherwise, it will discard the
+         * new scan if it also does not meet the minimum change in heading requirement.
+         * For performance reasons, generally it is a good idea to only process scans if the robot
+         * has moved a reasonable amount.
+         * Default value is 0.2 (meters).
+         */
         double minimum_travel_distance_;
+
+        /**
+         * Sets the minimum heading change between scans. If a new scan's heading is more than minimum_travel_heading_
+         * from the previous scan, the mapper will use the data from the new scan.  Otherwise, it will discard the
+         * new scan if it also does not meet the minimum travel distance requirement.
+         * For performance reasons, generally it is a good idea to only process scans if the robot
+         * has moved a reasonable amount.
+         * Default value is 10 degrees.
+         */
         double minimum_travel_heading_;
+
         /**
          * Scan buffer size is the length of the scan chain stored for scan matching.
-         * "scanBufferSize" should be set to approximately "scanBufferMaximumScanDistance" / "minimumTravelDistance".
+         * "scan_buffer_size_" should be set to approximately "scan_buffer_maximum_scan_distance_" / "minimum_travel_distance_".
          * The idea is to get an area approximately 20 meters long for scan matching.
-         * For example, if we add scans every minimumTravelDistance == 0.3 meters, then "scanBufferSize"
+         * For example, if we add scans every minimum_travel_distance_ == 0.3 meters, then "scanBufferSize"
          * should be 20 / 0.3 = 67.)
          * Default value is 67.
          */
         uint32_t scan_buffer_size_;
+
         /**
          * Scan buffer maximum scan distance is the maximum distance between the first and last scans
          * in the scan chain stored for matching.
          * Default value is 20.0.
          */
         double scan_buffer_maximum_scan_distance_;
-
-        ////////////////////////////////////////////////////////////
-        // NOTE: These two values are dependent on the resolution.  If the resolution is too small,
-        // then not many beams will hit the cell!
-
-        // Number of beams that must pass through a cell before it will be considered to be occupied
-        // or unoccupied.  This prevents stray beams from messing up the map.
-        uint32_t min_pass_through_;
-
-        // Minimum ratio of beams hitting cell to beams passing through cell to be marked as occupied
-        double occupancy_threshold_;
-
-        // The range of angles to search during a coarse search and a finer search
-        double fine_search_angle_offset_;
-        double coarse_search_angle_offset_;
-
-        // whether to increase the search space if no good matches are initially found
-        bool use_response_expansion;
-
-        // Resolution of angles to search during a coarse search
-        double coarse_angle_resolution_;
-
-        // Variance of penalty for deviating from odometry when scan-matching.
-        // The penalty is a multiplier (less than 1.0) is a function of the
-        // delta of the scan position being tested and the odometric pose
-        double distance_variance_penalty_;
-        double angle_variance_penalty_;
-
-        // Minimum value of the penalty multiplier so scores do not
-        // become too small
-        double minimum_angle_penalty_;
-        double minimum_distance_penalty_;
-
-        /**
-         * The size of the search grid used by the matcher.
-         * Default value is 0.3 meters which tells the matcher to use a 30cm x 30cm grid.
-         */
-        double correlation_search_space_dimension_;
-
-        /**
-         * The resolution (size of a grid cell) of the correlation grid.
-         * Default value is 0.01 meters.
-         */
-        double correlation_search_space_resolution_;
-
-        /**
-         * The point readings are smeared by this value in X and Y to create a smoother response.
-         * Default value is 0.03 meters.
-         */
-        double correlation_search_space_smear_deviation_;
-
-        /**
-         * Default value is true.
-         */
-        bool use_scan_barycenter_;
 
         /**
          * Scans are linked only if the correlation response value is greater than this value.
@@ -1273,6 +1257,12 @@ protected:
          * Default value is 6.0 meters.
          */
         double link_scan_maximum_distance_;
+
+        /**
+         * Enable/disable loop closure.
+         * Default is enabled.
+         */
+        bool do_loop_closing_;
 
         /**
          * Scans less than this distance from the current position will be considered for a match
@@ -1308,6 +1298,30 @@ protected:
          */
         double loop_match_minimum_response_fine_;
 
+        //////////////////////////////////////////////////////////////////////////////
+        //    CorrelationParameters correlationParameters;
+
+        /**
+         * The size of the search grid used by the matcher.
+         * Default value is 0.3 meters which tells the matcher to use a 30cm x 30cm grid.
+         */
+        double correlation_search_space_dimension_;
+
+        /**
+         * The resolution (size of a grid cell) of the correlation grid.
+         * Default value is 0.01 meters.
+         */
+        double correlation_search_space_resolution_;
+
+        /**
+         * The point readings are smeared by this value in X and Y to create a smoother response.
+         * Default value is 0.03 meters.
+         */
+        double correlation_search_space_smear_deviation_;
+
+        //////////////////////////////////////////////////////////////////////////////
+        //    CorrelationParameters loopCorrelationParameters;
+
         /**
          * The size of the search grid used by the matcher.
          * Default value is 0.3 meters which tells the matcher to use a 30cm x 30cm grid.
@@ -1326,10 +1340,36 @@ protected:
          */
         double loop_search_space_smear_deviation_;
 
-        std::unique_ptr<ScanManager> scan_manager_;
-        std::unique_ptr<ScanMatcher> scan_matcher_;
-        std::unique_ptr<MapperGraph> graph_;
-        std::unique_ptr<ScanSolver> scan_optimizer_;
+        //////////////////////////////////////////////////////////////////////////////
+        // ScanMatcherParameters;
+
+        // Variance of penalty for deviating from odometry when scan-matching.
+        // The penalty is a multiplier (less than 1.0) is a function of the
+        // delta of the scan position being tested and the odometric pose
+        double distance_variance_penalty_;
+        double angle_variance_penalty_;
+
+        // The range of angles to search during a coarse search and a finer search
+        double fine_search_angle_offset_;
+        double coarse_search_angle_offset_;
+
+        // Resolution of angles to search during a coarse search
+        double coarse_angle_resolution_;
+
+        // Minimum value of the penalty multiplier so scores do not
+        // become too small
+        double minimum_angle_penalty_;
+        double minimum_distance_penalty_;
+
+        // Whether to increase the search space if no good matches are initially found
+        bool use_response_expansion_;
+
+        // Number of beams that must pass through a cell before it will be considered to be occupied
+        // or unoccupied.  This prevents stray beams from messing up the map.
+        uint32_t min_pass_through_;
+
+        // Minimum ratio of beams hitting cell to beams passing through cell to be marked as occupied
+        double occupancy_threshold_;
 
 protected:
         bool hasMovedEnough(LocalizedRangeScan *scan, LocalizedRangeScan *last_scan) const;
@@ -1341,6 +1381,11 @@ public:
         {
         }
 
+public:
+        /**
+         * Allocate memory needed for mapping
+         * @param range_threshold
+         */
         void initialize(double range_threshold)
         {
                 if (initialized_ == true) {
@@ -1349,57 +1394,19 @@ public:
 
                 // create sequential scan and loop matcher
 
-                scan_matcher_ = ScanMatcher::create(
+                sequential_scan_matcher_ = ScanMatcher::create(
                         this,
                         correlation_search_space_dimension_,
                         correlation_search_space_resolution_,
                         correlation_search_space_smear_deviation_,
                         range_threshold);
-                assert(scan_matcher_);
+                assert(sequential_scan_matcher_);
 
                 scan_manager_ = std::make_unique<ScanManager>(scan_buffer_size_, scan_buffer_maximum_scan_distance_);
 
                 graph_ = std::make_unique<MapperGraph>(this, range_threshold);
 
                 initialized_ = true;
-        }
-
-        template <class NodeT>
-        void configure(const NodeT &node);
-
-        inline double getMinimumTravelDistance() const {
-                return minimum_travel_distance_;
-        }
-
-        /**
-         * @return Minimum travel heading in radians 
-         */
-        inline double getMinimumTravelHeading() const {
-                return minimum_travel_heading_;
-        }
-
-        void setScanSolver(std::unique_ptr<ScanSolver> scan_optimizer)
-        {
-                scan_optimizer_ = std::move(scan_optimizer);
-        }
-
-        MapperGraph *getGraph() const
-        {
-                return graph_.get();
-        }
-
-        ScanSolver *getScanSolver()
-        {
-                return scan_optimizer_.get();
-        }
-
-        /**
-         * Gets the device manager
-         * @return device manager
-         */
-        inline ScanManager *getScanManager() const
-        {
-                return scan_manager_.get();
         }
 
         /**
@@ -1415,178 +1422,132 @@ public:
          */
         bool process(LocalizedRangeScan *scan, Matrix3 *covariance = nullptr);
 
-        /**
-         * Returns all processed scans added to the mapper.
-         * NOTE: The returned scans have their corrected pose updated.
-         * @return list of scans received and processed by the mapper. If no scans have been processed,
-         * return an empty list.
+        /** 
+         * @return Create occupancy grid with the given resolution 
          */
-        const std::vector<LocalizedRangeScan *> getAllProcessedScans() const
-        {
-                std::vector<LocalizedRangeScan *> all_scans;
-
-                if (scan_manager_ != nullptr)
-                {
-                        all_scans = scan_manager_->getAllScans();
-                }
-
-                return all_scans;
-        }
-
-        // get occupancy grid from scans
         OccupancyGrid *getOccupancyGrid(const double &resolution)
         {
+                if (!scan_manager_) {
+                        return nullptr;
+                }
+                std::cout << " enter getOccGrid" << std::endl;
                 return OccupancyGrid::createFromScans(
-                        getAllProcessedScans(),
+                        scan_manager_->getAllScans(),
                         resolution,
                         (uint32_t)getParamMinPassThrough(),
                         (double)getParamOccupancyThreshold());
         }
 
-        uint32_t getParamMinPassThrough()
+public:
+        void setScanSolver(std::unique_ptr<ScanSolver> scan_optimizer)
         {
-                return min_pass_through_;
+                scan_optimizer_ = std::move(scan_optimizer);
         }
 
-        double getParamOccupancyThreshold()
+        ScanSolver *getScanSolver()
         {
-                return occupancy_threshold_;
+                return scan_optimizer_.get();
+        }
+
+        MapperGraph *getGraph() const
+        {
+                return graph_.get();
+        }
+
+        ScanManager *getScanManager() const
+        {
+                return scan_manager_.get();
         }
 
 public:
-        void setUseScanBarycenter(bool b) 
-        {
-                use_scan_barycenter_ = b;
-        }
-
-        void setScanBufferSize(int i)
-        {
-                scan_buffer_size_ = (uint32_t)i;
-        }
-
-        void setScanBufferMaximumScanDistance(double d)
-        {
-                scan_buffer_maximum_scan_distance_ = d;
-        }
-
-        void setLinkMatchMinimumResponseFine(double d)
-        {
-                link_match_minimum_response_fine_ = d;
-        }
-
-        void setLinkScanMaximumDistance(double d)
-        {
-                link_scan_maximum_distance_ = d;
-        }
-
-        void setLoopSearchMaximumDistance(double d)
-        {
-                loop_search_maximum_distance_ = d;
-                
-        }
-
-        void setLoopMatchMinimumChainSize(int i)
-        {
-                loop_match_minimum_chain_size_ = (uint32_t)i;
-        }
-
-        void setLoopMatchMaximumVarianceCoarse(double d)
-        {
-               loop_match_maximum_variance_coarse_ = d;
-        }
-
-        void setLoopMatchMinimumResponseCoarse(double d)
-        {
-               loop_match_minimum_response_coarse_ = d; 
-        }
-
-        void setLoopMatchMinimumResponseFine(double d)
-        {
-                loop_match_minimum_response_fine_ = d;
-        }
+        /* Getters */
+        // General Parameters
+        bool getParamUseScanMatching();
+        bool getParamUseScanBarycenter();
+        double getParamMinimumTravelDistance();
+        double getParamMinimumTravelHeading();
+        int getParamScanBufferSize();
+        double getParamScanBufferMaximumScanDistance();
+        double getParamLinkMatchMinimumResponseFine();
+        double getParamLinkScanMaximumDistance();
+        double getParamLoopSearchMaximumDistance();
+        bool getParamDoLoopClosing();
+        int getParamLoopMatchMinimumChainSize();
+        double getParamLoopMatchMaximumVarianceCoarse();
+        double getParamLoopMatchMinimumResponseCoarse();
+        double getParamLoopMatchMinimumResponseFine();
 
         // Correlation Parameters - Correlation Parameters
-        void setCorrelationSearchSpaceDimension(double d)
-        {
-               correlation_search_space_dimension_ = d;
-        }
-
-        void setCorrelationSearchSpaceResolution(double d)
-        {
-                correlation_search_space_resolution_ = d;
-        }
-
-        void setCorrelationSearchSpaceSmearDeviation(double d)
-        {
-                correlation_search_space_smear_deviation_ = d;
-        }
+        double getParamCorrelationSearchSpaceDimension();
+        double getParamCorrelationSearchSpaceResolution();
+        double getParamCorrelationSearchSpaceSmearDeviation();
 
         // Correlation Parameters - Loop Closure Parameters
-        void setLoopSearchSpaceDimension(double d)
-        {
-                loop_search_space_dimension_ = d;
-        }
-
-        void setLoopSearchSpaceResolution(double d)
-        {
-               loop_search_space_resolution_ = d;
-        }
-
-        void setLoopSearchSpaceSmearDeviation(double d)
-        {
-                loop_search_space_smear_deviation_ = d;
-        }
+        double getParamLoopSearchSpaceDimension();
+        double getParamLoopSearchSpaceResolution();
+        double getParamLoopSearchSpaceSmearDeviation();
 
         // Scan Matcher Parameters
-        void setDistanceVariancePenalty(double d)
-        {
-                distance_variance_penalty_ = math::Square(d);
-        }
+        double getParamDistanceVariancePenalty();
+        double getParamAngleVariancePenalty();
+        double getParamFineSearchAngleOffset();
+        double getParamCoarseSearchAngleOffset();
+        double getParamCoarseAngleResolution();
+        double getParamMinimumAnglePenalty();
+        double getParamMinimumDistancePenalty();
+        bool getParamUseResponseExpansion();
+        int getParamMinPassThrough();
+        double getParamOccupancyThreshold();
 
-        void setAngleVariancePenalty(double d)
-        {
-                angle_variance_penalty_ = math::Square(d);
-        }
+        /* Setters */
+        // General Parameters
+        void setParamUseScanMatching(bool b);
+        void setParamUseScanBarycenter(bool b);
+        void setParamMinimumTravelDistance(double d);
+        void setParamMinimumTravelHeading(double d);
+        void setParamScanBufferSize(int i);
+        void setParamScanBufferMaximumScanDistance(double d);
+        void setParamLinkMatchMinimumResponseFine(double d);
+        void setParamLinkScanMaximumDistance(double d);
+        void setParamLoopSearchMaximumDistance(double d);
+        void setParamDoLoopClosing(bool b);
+        void setParamLoopMatchMinimumChainSize(int i);
+        void setParamLoopMatchMaximumVarianceCoarse(double d);
+        void setParamLoopMatchMinimumResponseCoarse(double d);
+        void setParamLoopMatchMinimumResponseFine(double d);
 
-        void setFineSearchAngleOffset(double d)
-        {
-                fine_search_angle_offset_ = d;
-        }
+        // Correlation Parameters - Correlation Parameters
+        void setParamCorrelationSearchSpaceDimension(double d);
+        void setParamCorrelationSearchSpaceResolution(double d);
+        void setParamCorrelationSearchSpaceSmearDeviation(double d);
 
-        void setCoarseSearchAngleOffset(double d)
-        {
-                coarse_search_angle_offset_ = d;
-        }
+        // Correlation Parameters - Loop Closure Parameters
+        void setParamLoopSearchSpaceDimension(double d);
+        void setParamLoopSearchSpaceResolution(double d);
+        void setParamLoopSearchSpaceSmearDeviation(double d);
 
-        void setCoarseAngleResolution(double d)
-        {
-                coarse_angle_resolution_ = d;
-        }
+        // Scan Matcher Parameters
+        void setParamDistanceVariancePenalty(double d);
+        void setParamAngleVariancePenalty(double d);
+        void setParamFineSearchAngleOffset(double d);
+        void setParamCoarseSearchAngleOffset(double d);
+        void setParamCoarseAngleResolution(double d);
+        void setParamMinimumAnglePenalty(double d);
+        void setParamMinimumDistancePenalty(double d);
+        void setParamUseResponseExpansion(bool b);
+        void setParamMinPassThrough(int i);
+        void setParamOccupancyThreshold(double d);
 
-        void setMinimumAnglePenalty(double d)
-        {
-                minimum_angle_penalty_ = d;
-        }
+private:
+        /**
+         * Restrict the copy constructor
+         */
+        Mapper(const Mapper &);
 
-        void setMinimumDistancePenalty(double d)
-        {
-                minimum_distance_penalty_ = d;
-        }
-
-        void setUseResponseExpansion(bool b)
-        {
-                use_response_expansion = b;
-        }
-
-        void setMinPassThrough(int i)
-        {
-                min_pass_through_ = (uint32_t)i;
-        }
-
-        void setOccupancyThreshold(double d)
-        {
-                occupancy_threshold_ = d;
-        }
+        /**
+         * Restrict the assignment operator
+         */
+        const Mapper &operator=(const Mapper &);
 
 }; // Mapper
 

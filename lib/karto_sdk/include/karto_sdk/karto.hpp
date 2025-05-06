@@ -4,6 +4,7 @@
 #include <memory>
 #include <vector>
 #include <boost/thread.hpp>
+#include <iostream>
 
 #include "math.hpp"
 
@@ -25,7 +26,6 @@ enum GridStates
 ///////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////
 
-//////////////////////////////
 /**
  * Represents a vector (x, y) in 2-dimensional real space.
  */
@@ -38,8 +38,8 @@ public:
          */
         Vector2()
         {
-                m_Values[0] = 0;
-                m_Values[1] = 0;
+                values_[0] = 0;
+                values_[1] = 0;
         }
 
         /**
@@ -49,8 +49,8 @@ public:
          */
         Vector2(T x, T y)
         {
-                m_Values[0] = x;
-                m_Values[1] = y;
+                values_[0] = x;
+                values_[1] = y;
         }
 
 public:
@@ -58,67 +58,67 @@ public:
          * Gets the x-coordinate of this vector2
          * @return the x-coordinate of the vector2
          */
-        inline const T &GetX() const
+        inline const T &getX() const
         {
-                return m_Values[0];
+                return values_[0];
         }
 
         /**
          * Sets the x-coordinate of this vector2
          * @param x the x-coordinate of the vector2
          */
-        inline void SetX(const T &x)
+        inline void setX(const T &x)
         {
-                m_Values[0] = x;
+                values_[0] = x;
         }
 
         /**
          * Gets the y-coordinate of this vector2
          * @return the y-coordinate of the vector2
          */
-        inline const T &GetY() const
+        inline const T &getY() const
         {
-                return m_Values[1];
+                return values_[1];
         }
 
         /**
          * Sets the y-coordinate of this vector2
          * @param y the y-coordinate of the vector2
          */
-        inline void SetY(const T &y)
+        inline void setY(const T &y)
         {
-                m_Values[1] = y;
+                values_[1] = y;
         }
 
         /**
          * Floor point operator
-         * @param rOther
+         * @param other
          */
-        inline void MakeFloor(const Vector2 &rOther)
+        inline void makeFloor(const Vector2 &other)
         {
-                if (rOther.m_Values[0] < m_Values[0])
+                if (other.values_[0] < values_[0])
                 {
-                        m_Values[0] = rOther.m_Values[0];
+                        values_[0] = other.values_[0];
                 }
-                if (rOther.m_Values[1] < m_Values[1])
+                if (other.values_[1] < values_[1])
                 {
-                        m_Values[1] = rOther.m_Values[1];
+                        values_[1] = other.values_[1];
                 }
         }
 
         /**
          * Ceiling point operator
-         * @param rOther
+         * @param other
          */
-        inline void MakeCeil(const Vector2 &rOther)
+        inline void makeCeil(const Vector2 &other)
         {
-                if (rOther.m_Values[0] > m_Values[0])
+                if (other.values_[0] > values_[0])
                 {
-                        m_Values[0] = rOther.m_Values[0];
+                        values_[0] = other.values_[0];
                 }
-                if (rOther.m_Values[1] > m_Values[1])
+                if (other.values_[1] > values_[1])
                 {
-                        m_Values[1] = rOther.m_Values[1];
+                        values_[1] = other.values_[1];
                 }
         }
 
@@ -126,76 +126,76 @@ public:
          * Returns the square of the length of the vector
          * @return square of the length of the vector
          */
-        inline double SquaredLength() const
+        inline double computeSquaredLength() const
         {
-                return math::Square(m_Values[0]) + math::Square(m_Values[1]);
+                return math::Square(values_[0]) + math::Square(values_[1]);
         }
 
         /**
          * Returns the length of the vector (x and y).
          * @return length of the vector
          */
-        inline double Length() const
+        inline double computeLength() const
         {
-                return sqrt(SquaredLength());
+                return sqrt(computeSquaredLength());
         }
 
         /**
          * Returns the square distance to the given vector
          * @returns square distance to the given vector
          */
-        inline double SquaredDistance(const Vector2 &rOther) const
+        inline double computeSquaredDistance(const Vector2 &other) const
         {
-                return (*this - rOther).SquaredLength();
+                return (*this - other).computeSquaredLength();
         }
 
         /**
          * Gets the distance to the other vector2
-         * @param rOther
+         * @param other
          * @return distance to other vector2
          */
-        inline double Distance(const Vector2 &rOther) const
+        inline double Distance(const Vector2 &other) const
         {
-                return sqrt(SquaredDistance(rOther));
+                return sqrt(computeSquaredDistance(other));
         }
 
 public:
         /**
          * In place Vector2 addition.
          */
-        inline void operator+=(const Vector2 &rOther)
+        inline void operator+=(const Vector2 &other)
         {
-                m_Values[0] += rOther.m_Values[0];
-                m_Values[1] += rOther.m_Values[1];
+                values_[0] += other.values_[0];
+                values_[1] += other.values_[1];
         }
 
         /**
          * In place Vector2 subtraction.
          */
-        inline void operator-=(const Vector2 &rOther)
+        inline void operator-=(const Vector2 &other)
         {
-                m_Values[0] -= rOther.m_Values[0];
-                m_Values[1] -= rOther.m_Values[1];
+                values_[0] -= other.values_[0];
+                values_[1] -= other.values_[1];
         }
 
         /**
          * Addition operator
-         * @param rOther
+         * @param other
          * @return vector resulting from adding this vector with the given vector
          */
-        inline const Vector2 operator+(const Vector2 &rOther) const
+        inline const Vector2 operator+(const Vector2 &other) const
         {
-                return Vector2(m_Values[0] + rOther.m_Values[0], m_Values[1] + rOther.m_Values[1]);
+                return Vector2(values_[0] + other.values_[0], values_[1] + other.values_[1]);
         }
 
         /**
          * Subtraction operator
-         * @param rOther
+         * @param other
          * @return vector resulting from subtracting this vector from the given vector
          */
-        inline const Vector2 operator-(const Vector2 &rOther) const
+        inline const Vector2 operator-(const Vector2 &other) const
         {
-                return Vector2(m_Values[0] - rOther.m_Values[0], m_Values[1] - rOther.m_Values[1]);
+                return Vector2(values_[0] - other.values_[0], values_[1] - other.values_[1]);
         }
 
         /**
@@ -204,8 +204,8 @@ public:
          */
         inline void operator/=(T scalar)
         {
-                m_Values[0] /= scalar;
-                m_Values[1] /= scalar;
+                values_[0] /= scalar;
+                values_[1] /= scalar;
         }
 
         /**
@@ -215,17 +215,17 @@ public:
          */
         inline const Vector2 operator/(T scalar) const
         {
-                return Vector2(m_Values[0] / scalar, m_Values[1] / scalar);
+                return Vector2(values_[0] / scalar, values_[1] / scalar);
         }
 
         /**
          * Computes the dot product between the two vectors
-         * @param rOther
+         * @param other
          * @return dot product
          */
-        inline double operator*(const Vector2 &rOther) const
+        inline double operator*(const Vector2 &other) const
         {
-                return m_Values[0] * rOther.m_Values[0] + m_Values[1] * rOther.m_Values[1];
+                return values_[0] * other.values_[0] + values_[1] * other.values_[1];
         }
 
         /**
@@ -234,7 +234,7 @@ public:
          */
         inline const Vector2 operator*(T scalar) const
         {
-                return Vector2(m_Values[0] * scalar, m_Values[1] * scalar);
+                return Vector2(values_[0] * scalar, values_[1] * scalar);
         }
 
         /**
@@ -243,7 +243,7 @@ public:
          */
         inline const Vector2 operator-(T scalar) const
         {
-                return Vector2(m_Values[0] - scalar, m_Values[1] - scalar);
+                return Vector2(values_[0] - scalar, values_[1] - scalar);
         }
 
         /**
@@ -252,73 +252,67 @@ public:
          */
         inline void operator*=(T scalar)
         {
-                m_Values[0] *= scalar;
-                m_Values[1] *= scalar;
+                values_[0] *= scalar;
+                values_[1] *= scalar;
         }
 
         /**
          * Equality operator returns true if the corresponding x, y values of each Vector2 are the same values.
-         * @param rOther
+         * @param other
          */
-        inline bool operator==(const Vector2 &rOther) const
+        inline bool operator==(const Vector2 &other) const
         {
-                return m_Values[0] == rOther.m_Values[0] && m_Values[1] == rOther.m_Values[1];
+                return values_[0] == other.values_[0] && values_[1] == other.values_[1];
         }
 
         /**
          * Inequality operator returns true if any of the corresponding x, y values of each Vector2 not the same.
-         * @param rOther
+         * @param other
          */
-        inline bool operator!=(const Vector2 &rOther) const
+        inline bool operator!=(const Vector2 &other) const
         {
-                return m_Values[0] != rOther.m_Values[0] || m_Values[1] != rOther.m_Values[1];
+                return values_[0] != other.values_[0] || values_[1] != other.values_[1];
         }
 
         /**
          * Less than operator
-         * @param rOther
+         * @param other
          * @return true if left vector is less than right vector
          */
-        inline bool operator<(const Vector2 &rOther) const
+        inline bool operator<(const Vector2 &other) const
         {
-                if (m_Values[0] < rOther.m_Values[0])
+                if (values_[0] < other.values_[0])
                 {
                         return true;
                 }
-                else if (m_Values[0] > rOther.m_Values[0])
+                else if (values_[0] > other.values_[0])
                 {
                         return false;
                 }
                 else
                 {
-                        return m_Values[1] < rOther.m_Values[1];
+                        return values_[1] < other.values_[1];
                 }
         }
 
         /**
          * Write Vector2 onto output stream
-         * @param rStream output stream
-         * @param rVector to write
+         * @param stream output stream
+         * @param vector to write
          */
-        friend inline std::ostream &operator<<(std::ostream &rStream, const Vector2 &rVector)
+        friend inline std::ostream &operator<<(std::ostream &stream, const Vector2 &vector)
         {
-                rStream << rVector.GetX() << " " << rVector.GetY();
-                return rStream;
-        }
-
-        /**
-         * Read Vector2 from input stream
-         * @param rStream input stream
-         */
-        friend inline std::istream &operator>>(std::istream &rStream, const Vector2 & /*rVector*/)
-        {
-                // Implement me!!  TODO(lucbettaieb): What the what?  Do I need to implement this?
-                return rStream;
+                stream << vector.getX() << " " << vector.getY();
+                return stream;
         }
 
 private:
-        T m_Values[2];
+        T values_[2];
 }; // Vector2<T>
+
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
 
 /**
  * Defines a position (x, y) in 2-dimensional space and heading.
@@ -330,18 +324,18 @@ public:
          * Default Constructor
          */
         Pose2()
-            : m_Heading(0.0)
+        : heading_(0.0)
         {
         }
 
         /**
          * Constructor initializing pose parameters
-         * @param rPosition position
+         * @param position position
          * @param heading heading
          **/
-        Pose2(const Vector2<double> &rPosition, double heading)
-            : m_Position(rPosition),
-              m_Heading(heading)
+        Pose2(const Vector2<double> &position, double heading)
+            : position_(position),
+              heading_(heading)
         {
         }
 
@@ -352,17 +346,17 @@ public:
          * @param heading heading
          **/
         Pose2(double x, double y, double heading)
-            : m_Position(x, y),
-              m_Heading(heading)
+        : position_(x, y),
+          heading_(heading)
         {
         }
 
         /**
          * Copy constructor
          */
-        Pose2(const Pose2 &rOther)
-            : m_Position(rOther.m_Position),
-              m_Heading(rOther.m_Heading)
+        Pose2(const Pose2 &other)
+        : position_(other.position_),
+          heading_(other.heading_)
         {
         }
 
@@ -371,91 +365,91 @@ public:
          * Returns the x-coordinate
          * @return the x-coordinate of the pose
          */
-        inline double GetX() const
+        inline double getX() const
         {
-                return m_Position.GetX();
+                return position_.getX();
         }
 
         /**
          * Sets the x-coordinate
          * @param x the x-coordinate of the pose
          */
-        inline void SetX(double x)
+        inline void setX(double x)
         {
-                m_Position.SetX(x);
+                position_.setX(x);
         }
 
         /**
          * Returns the y-coordinate
          * @return the y-coordinate of the pose
          */
-        inline double GetY() const
+        inline double getY() const
         {
-                return m_Position.GetY();
+                return position_.getY();
         }
 
         /**
          * Sets the y-coordinate
          * @param y the y-coordinate of the pose
          */
-        inline void SetY(double y)
+        inline void setY(double y)
         {
-                m_Position.SetY(y);
+                position_.setY(y);
         }
 
         /**
          * Returns the position
          * @return the position of the pose
          */
-        inline const Vector2<double> &GetPosition() const
+        inline const Vector2<double> &getPosition() const
         {
-                return m_Position;
+                return position_;
         }
 
         /**
          * Sets the position
-         * @param rPosition of the pose
+         * @param position of the pose
          */
-        inline void SetPosition(const Vector2<double> &rPosition)
+        inline void setPosition(const Vector2<double> &position)
         {
-                m_Position = rPosition;
+                position_ = position;
         }
 
         /**
          * Returns the heading of the pose (in radians)
          * @return the heading of the pose
          */
-        inline double GetHeading() const
+        inline double getHeading() const
         {
-                return m_Heading;
+                return heading_;
         }
 
         /**
          * Sets the heading
          * @param heading of the pose
          */
-        inline void SetHeading(double heading)
+        inline void setHeading(double heading)
         {
-                m_Heading = heading;
+                heading_ = heading;
         }
 
         /**
          * Return the squared distance between two Pose2
          * @return squared distance
          */
-        inline double SquaredDistance(const Pose2 &rOther) const
+        inline double computeSquaredDistance(const Pose2 &other) const
         {
-                return m_Position.SquaredDistance(rOther.m_Position);
+                return position_.computeSquaredDistance(other.position_);
         }
 
 public:
         /**
          * Assignment operator
          */
-        inline Pose2 &operator=(const Pose2 &rOther)
+        inline Pose2 &operator=(const Pose2 &other)
         {
-                m_Position = rOther.m_Position;
-                m_Heading = rOther.m_Heading;
+                position_ = other.position_;
+                heading_ = other.heading_;
 
                 return *this;
         }
@@ -463,75 +457,65 @@ public:
         /**
          * Equality operator
          */
-        inline bool operator==(const Pose2 &rOther) const
+        inline bool operator==(const Pose2 &other) const
         {
-                return m_Position == rOther.m_Position && m_Heading == rOther.m_Heading;
+                return position_ == other.position_ && heading_ == other.heading_;
         }
 
         /**
          * Inequality operator
          */
-        inline bool operator!=(const Pose2 &rOther) const
+        inline bool operator!=(const Pose2 &other) const
         {
-                return m_Position != rOther.m_Position || m_Heading != rOther.m_Heading;
+                return position_ != other.position_ || heading_ != other.heading_;
         }
 
         /**
          * In place Pose2 add.
          */
-        inline void operator+=(const Pose2 &rOther)
+        inline void operator+=(const Pose2 &other)
         {
-                m_Position += rOther.m_Position;
-                m_Heading = math::NormalizeAngle(m_Heading + rOther.m_Heading);
+                position_ += other.position_;
+                heading_ = math::NormalizeAngle(heading_ + other.heading_);
         }
 
         /**
          * Binary Pose2 add
-         * @param rOther
+         * @param other
          * @return Pose2 sum
          */
-        inline Pose2 operator+(const Pose2 &rOther) const
+        inline Pose2 operator+(const Pose2 &other) const
         {
-                return Pose2(m_Position + rOther.m_Position,
-                             math::NormalizeAngle(m_Heading + rOther.m_Heading));
+                return Pose2(position_ + other.position_,
+                             math::NormalizeAngle(heading_ + other.heading_));
         }
 
         /**
          * Binary Pose2 subtract
-         * @param rOther
+         * @param other
          * @return Pose2 difference
          */
-        inline Pose2 operator-(const Pose2 &rOther) const
+        inline Pose2 operator-(const Pose2 &other) const
         {
-                return Pose2(m_Position - rOther.m_Position,
-                             math::NormalizeAngle(m_Heading - rOther.m_Heading));
-        }
-
-        /**
-         * Read pose from input stream
-         * @param rStream input stream
-         */
-        friend inline std::istream &operator>>(std::istream &rStream, const Pose2 & /*rPose*/)
-        {
-                // Implement me!!
-                return rStream;
+                return Pose2(position_ - other.position_,
+                             math::NormalizeAngle(heading_ - other.heading_));
         }
 
         /**
          * Write this pose onto output stream
-         * @param rStream output stream
-         * @param rPose to read
+         * @param stream output stream
+         * @param pose to read
          */
-        friend inline std::ostream &operator<<(std::ostream &rStream, const Pose2 &rPose)
+        friend inline std::ostream &operator<<(std::ostream &stream, const Pose2 &pose)
         {
-                rStream << rPose.m_Position.GetX() << " " << rPose.m_Position.GetY() << " " << rPose.m_Heading;
-                return rStream;
+                stream << pose.position_.getX() << " " << pose.position_.getY() << " " << pose.heading_;
+                return stream;
         }
 
 private:
-        Vector2<double> m_Position;
+        Vector2<double> position_;
 
-        double m_Heading;
+        double heading_;
 }; // Pose2
 
 /**
@@ -539,6 +523,9 @@ private:
  */
 typedef std::vector<Pose2> Pose2Vector;
 
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
 
 /**
  * Defines a Matrix 3 x 3 class.
@@ -546,263 +533,277 @@ typedef std::vector<Pose2> Pose2Vector;
 class Matrix3
 {
 public:
-  /**
-   * Default constructor
-   */
-  Matrix3()
-  {
-    Clear();
-  }
+        /**
+         * Default constructor
+         */
+        Matrix3()
+        {
+                clear();
+        }
 
-  /**
-   * Copy constructor
-   */
-  inline Matrix3(const Matrix3 & rOther)
-  {
-    memcpy(m_Matrix, rOther.m_Matrix, 9 * sizeof(double));
-  }
-
-public:
-  /**
-   * Sets this matrix to identity matrix
-   */
-  void SetToIdentity()
-  {
-    memset(m_Matrix, 0, 9 * sizeof(double));
-
-    for (int32_t i = 0; i < 3; i++) {
-      m_Matrix[i][i] = 1.0;
-    }
-  }
-
-  /**
-   * Sets this matrix to zero matrix
-   */
-  void Clear()
-  {
-    memset(m_Matrix, 0, 9 * sizeof(double));
-  }
-
-  /**
-   * Sets this matrix to be the rotation matrix of rotation around given axis
-   * @param x x-coordinate of axis
-   * @param y y-coordinate of axis
-   * @param z z-coordinate of axis
-   * @param radians amount of rotation
-   */
-  void FromAxisAngle(double x, double y, double z, const double radians)
-  {
-    double cosRadians = cos(radians);
-    double sinRadians = sin(radians);
-    double oneMinusCos = 1.0 - cosRadians;
-
-    double xx = x * x;
-    double yy = y * y;
-    double zz = z * z;
-
-    double xyMCos = x * y * oneMinusCos;
-    double xzMCos = x * z * oneMinusCos;
-    double yzMCos = y * z * oneMinusCos;
-
-    double xSin = x * sinRadians;
-    double ySin = y * sinRadians;
-    double zSin = z * sinRadians;
-
-    m_Matrix[0][0] = xx * oneMinusCos + cosRadians;
-    m_Matrix[0][1] = xyMCos - zSin;
-    m_Matrix[0][2] = xzMCos + ySin;
-
-    m_Matrix[1][0] = xyMCos + zSin;
-    m_Matrix[1][1] = yy * oneMinusCos + cosRadians;
-    m_Matrix[1][2] = yzMCos - xSin;
-
-    m_Matrix[2][0] = xzMCos - ySin;
-    m_Matrix[2][1] = yzMCos + xSin;
-    m_Matrix[2][2] = zz * oneMinusCos + cosRadians;
-  }
-
-  /**
-   * Returns transposed version of this matrix
-   * @return transposed matrix
-   */
-  Matrix3 Transpose() const
-  {
-    Matrix3 transpose;
-
-    for (uint32_t row = 0; row < 3; row++) {
-      for (uint32_t col = 0; col < 3; col++) {
-        transpose.m_Matrix[row][col] = m_Matrix[col][row];
-      }
-    }
-
-    return transpose;
-  }
-
-  /**
-   * Returns the inverse of the matrix
-   */
-  Matrix3 Inverse() const
-  {
-    Matrix3 kInverse = *this;
-    bool haveInverse = InverseFast(kInverse, 1e-14);
-    if (haveInverse == false) {
-      assert(false);
-    }
-    return kInverse;
-  }
-
-  /**
-   * Internal helper method for inverse matrix calculation
-   * This code is lifted from the OgreMatrix3 class!!
-   */
-  bool InverseFast(Matrix3 & rkInverse, double fTolerance = KT_TOLERANCE) const
-  {
-    // Invert a 3x3 using cofactors.  This is about 8 times faster than
-    // the Numerical Recipes code which uses Gaussian elimination.
-    rkInverse.m_Matrix[0][0] = m_Matrix[1][1] * m_Matrix[2][2] - m_Matrix[1][2] * m_Matrix[2][1];
-    rkInverse.m_Matrix[0][1] = m_Matrix[0][2] * m_Matrix[2][1] - m_Matrix[0][1] * m_Matrix[2][2];
-    rkInverse.m_Matrix[0][2] = m_Matrix[0][1] * m_Matrix[1][2] - m_Matrix[0][2] * m_Matrix[1][1];
-    rkInverse.m_Matrix[1][0] = m_Matrix[1][2] * m_Matrix[2][0] - m_Matrix[1][0] * m_Matrix[2][2];
-    rkInverse.m_Matrix[1][1] = m_Matrix[0][0] * m_Matrix[2][2] - m_Matrix[0][2] * m_Matrix[2][0];
-    rkInverse.m_Matrix[1][2] = m_Matrix[0][2] * m_Matrix[1][0] - m_Matrix[0][0] * m_Matrix[1][2];
-    rkInverse.m_Matrix[2][0] = m_Matrix[1][0] * m_Matrix[2][1] - m_Matrix[1][1] * m_Matrix[2][0];
-    rkInverse.m_Matrix[2][1] = m_Matrix[0][1] * m_Matrix[2][0] - m_Matrix[0][0] * m_Matrix[2][1];
-    rkInverse.m_Matrix[2][2] = m_Matrix[0][0] * m_Matrix[1][1] - m_Matrix[0][1] * m_Matrix[1][0];
-
-    double fDet = m_Matrix[0][0] * rkInverse.m_Matrix[0][0] +
-      m_Matrix[0][1] * rkInverse.m_Matrix[1][0] +
-      m_Matrix[0][2] * rkInverse.m_Matrix[2][0];
-
-    if (fabs(fDet) <= fTolerance) {
-      return false;
-    }
-
-    double fInvDet = 1.0 / fDet;
-    for (size_t row = 0; row < 3; row++) {
-      for (size_t col = 0; col < 3; col++) {
-        rkInverse.m_Matrix[row][col] *= fInvDet;
-      }
-    }
-
-    return true;
-  }
-
-  /**
-   * Returns a string representation of this matrix
-   * @return string representation of this matrix
-   */
-  inline std::string ToString() const
-  {
-    std::stringstream converter;
-    converter.precision(std::numeric_limits<double>::digits10);
-
-    for (int row = 0; row < 3; row++) {
-      for (int col = 0; col < 3; col++) {
-        converter << m_Matrix[row][col] << " ";
-      }
-    }
-
-    return converter.str();
-  }
+        /**
+         * Copy constructor
+         */
+        inline Matrix3(const Matrix3 &other)
+        {
+                memcpy(matrix_, other.matrix_, 9 * sizeof(double));
+        }
 
 public:
-  /**
-   * Assignment operator
-   */
-  inline Matrix3 & operator=(const Matrix3 & rOther)
-  {
-    memcpy(m_Matrix, rOther.m_Matrix, 9 * sizeof(double));
-    return *this;
-  }
+        /**
+         * Sets this matrix to identity matrix
+         */
+        void setToIdentity()
+        {
+                memset(matrix_, 0, 9 * sizeof(double));
 
-  /**
-   * Matrix element access, allows use of construct mat(r, c)
-   * @param row
-   * @param column
-   * @return reference to mat(r,c)
-   */
-  inline double & operator()(uint32_t row, uint32_t column)
-  {
-    return m_Matrix[row][column];
-  }
+                for (int32_t i = 0; i < 3; i++)
+                {
+                        matrix_[i][i] = 1.0;
+                }
+        }
 
-  /**
-   * Read-only matrix element access, allows use of construct mat(r, c)
-   * @param row
-   * @param column
-   * @return mat(r,c)
-   */
-  inline double operator()(uint32_t row, uint32_t column) const
-  {
-    return m_Matrix[row][column];
-  }
+        /**
+         * Sets this matrix to zero matrix
+         */
+        void clear()
+        {
+                memset(matrix_, 0, 9 * sizeof(double));
+        }
 
-  /**
-   * Binary Matrix3 multiplication.
-   * @param rOther
-   * @return Matrix3 product
-   */
-  Matrix3 operator*(const Matrix3 & rOther) const
-  {
-    Matrix3 product;
+        /**
+         * Sets this matrix to be the rotation matrix of rotation around given axis
+         * @param x x-coordinate of axis
+         * @param y y-coordinate of axis
+         * @param z z-coordinate of axis
+         * @param radians amount of rotation
+         */
+        void fromAxisAngle(double x, double y, double z, const double radians)
+        {
+                double cosRadians = cos(radians);
+                double sinRadians = sin(radians);
+                double oneMinusCos = 1.0 - cosRadians;
 
-    for (size_t row = 0; row < 3; row++) {
-      for (size_t col = 0; col < 3; col++) {
-        product.m_Matrix[row][col] = m_Matrix[row][0] * rOther.m_Matrix[0][col] +
-          m_Matrix[row][1] * rOther.m_Matrix[1][col] +
-          m_Matrix[row][2] * rOther.m_Matrix[2][col];
-      }
-    }
+                double xx = x * x;
+                double yy = y * y;
+                double zz = z * z;
 
-    return product;
-  }
+                double xyMCos = x * y * oneMinusCos;
+                double xzMCos = x * z * oneMinusCos;
+                double yzMCos = y * z * oneMinusCos;
 
-  /**
-   * Matrix3 and Pose2 multiplication - matrix * pose [3x3 * 3x1 = 3x1]
-   * @param rPose2
-   * @return Pose2 product
-   */
-  inline Pose2 operator*(const Pose2 & rPose2) const
-  {
-    Pose2 pose2;
+                double xSin = x * sinRadians;
+                double ySin = y * sinRadians;
+                double zSin = z * sinRadians;
 
-    pose2.SetX(m_Matrix[0][0] * rPose2.GetX() + m_Matrix[0][1] *
-      rPose2.GetY() + m_Matrix[0][2] * rPose2.GetHeading());
-    pose2.SetY(m_Matrix[1][0] * rPose2.GetX() + m_Matrix[1][1] *
-      rPose2.GetY() + m_Matrix[1][2] * rPose2.GetHeading());
-    pose2.SetHeading(m_Matrix[2][0] * rPose2.GetX() + m_Matrix[2][1] *
-      rPose2.GetY() + m_Matrix[2][2] * rPose2.GetHeading());
+                matrix_[0][0] = xx * oneMinusCos + cosRadians;
+                matrix_[0][1] = xyMCos - zSin;
+                matrix_[0][2] = xzMCos + ySin;
 
-    return pose2;
-  }
+                matrix_[1][0] = xyMCos + zSin;
+                matrix_[1][1] = yy * oneMinusCos + cosRadians;
+                matrix_[1][2] = yzMCos - xSin;
 
-  /**
-   * In place Matrix3 add.
-   * @param rkMatrix
-   */
-  inline void operator+=(const Matrix3 & rkMatrix)
-  {
-    for (uint32_t row = 0; row < 3; row++) {
-      for (uint32_t col = 0; col < 3; col++) {
-        m_Matrix[row][col] += rkMatrix.m_Matrix[row][col];
-      }
-    }
-  }
+                matrix_[2][0] = xzMCos - ySin;
+                matrix_[2][1] = yzMCos + xSin;
+                matrix_[2][2] = zz * oneMinusCos + cosRadians;
+        }
 
-  /**
-   * Write Matrix3 onto output stream
-   * @param rStream output stream
-   * @param rMatrix to write
-   */
-  friend inline std::ostream & operator<<(std::ostream & rStream, const Matrix3 & rMatrix)
-  {
-    rStream << rMatrix.ToString();
-    return rStream;
-  }
+        /**
+         * Returns transposed version of this matrix
+         * @return transposed matrix
+         */
+        Matrix3 transpose() const
+        {
+                Matrix3 transpose;
+
+                for (uint32_t row = 0; row < 3; row++)
+                {
+                        for (uint32_t col = 0; col < 3; col++)
+                        {
+                                transpose.matrix_[row][col] = matrix_[col][row];
+                        }
+                }
+
+                return transpose;
+        }
+
+        /**
+         * Returns the inverse of the matrix
+         */
+        Matrix3 inverse() const
+        {
+                Matrix3 k_inverse = *this;
+                bool have_inverse = computeInverseFast(k_inverse, 1e-14);
+                if (have_inverse == false)
+                {
+                        assert(false);
+                }
+                return k_inverse;
+        }
+
+        /**
+         * Internal helper method for inverse matrix calculation
+         * This code is lifted from the OgreMatrix3 class!!
+         */
+        bool computeInverseFast(Matrix3 &k_inverse, double tolerance = KT_TOLERANCE) const
+        {
+                // Invert a 3x3 using cofactors.  This is about 8 times faster than
+                // the Numerical Recipes code which uses Gaussian elimination.
+                k_inverse.matrix_[0][0] = matrix_[1][1] * matrix_[2][2] - matrix_[1][2] * matrix_[2][1];
+                k_inverse.matrix_[0][1] = matrix_[0][2] * matrix_[2][1] - matrix_[0][1] * matrix_[2][2];
+                k_inverse.matrix_[0][2] = matrix_[0][1] * matrix_[1][2] - matrix_[0][2] * matrix_[1][1];
+                k_inverse.matrix_[1][0] = matrix_[1][2] * matrix_[2][0] - matrix_[1][0] * matrix_[2][2];
+                k_inverse.matrix_[1][1] = matrix_[0][0] * matrix_[2][2] - matrix_[0][2] * matrix_[2][0];
+                k_inverse.matrix_[1][2] = matrix_[0][2] * matrix_[1][0] - matrix_[0][0] * matrix_[1][2];
+                k_inverse.matrix_[2][0] = matrix_[1][0] * matrix_[2][1] - matrix_[1][1] * matrix_[2][0];
+                k_inverse.matrix_[2][1] = matrix_[0][1] * matrix_[2][0] - matrix_[0][0] * matrix_[2][1];
+                k_inverse.matrix_[2][2] = matrix_[0][0] * matrix_[1][1] - matrix_[0][1] * matrix_[1][0];
+
+                double fDet = matrix_[0][0] * k_inverse.matrix_[0][0] +
+                              matrix_[0][1] * k_inverse.matrix_[1][0] +
+                              matrix_[0][2] * k_inverse.matrix_[2][0];
+
+                if (fabs(fDet) <= tolerance)
+                {
+                        return false;
+                }
+
+                double fInvDet = 1.0 / fDet;
+                for (size_t row = 0; row < 3; row++)
+                {
+                        for (size_t col = 0; col < 3; col++)
+                        {
+                                k_inverse.matrix_[row][col] *= fInvDet;
+                        }
+                }
+
+                return true;
+        }
+
+        /**
+         * Returns a string representation of this matrix
+         * @return string representation of this matrix
+         */
+        inline std::string toString() const
+        {
+                std::stringstream converter;
+                converter.precision(std::numeric_limits<double>::digits10);
+
+                for (int row = 0; row < 3; row++)
+                {
+                        for (int col = 0; col < 3; col++)
+                        {
+                                converter << matrix_[row][col] << " ";
+                        }
+                }
+
+                return converter.str();
+        }
+
+public:
+        /**
+         * Assignment operator
+         */
+        inline Matrix3 &operator=(const Matrix3 &other)
+        {
+                memcpy(matrix_, other.matrix_, 9 * sizeof(double));
+                return *this;
+        }
+
+        /**
+         * Matrix element access, allows use of construct mat(r, c)
+         * @param row
+         * @param column
+         * @return reference to mat(r,c)
+         */
+        inline double &operator()(uint32_t row, uint32_t column)
+        {
+                return matrix_[row][column];
+        }
+
+        /**
+         * Read-only matrix element access, allows use of construct mat(r, c)
+         * @param row
+         * @param column
+         * @return mat(r,c)
+         */
+        inline double operator()(uint32_t row, uint32_t column) const
+        {
+                return matrix_[row][column];
+        }
+
+        /**
+         * Binary Matrix3 multiplication.
+         * @param other
+         * @return Matrix3 product
+         */
+        Matrix3 operator*(const Matrix3 &other) const
+        {
+                Matrix3 product;
+
+                for (size_t row = 0; row < 3; row++)
+                {
+                        for (size_t col = 0; col < 3; col++)
+                        {
+                                product.matrix_[row][col] = matrix_[row][0] * other.matrix_[0][col] +
+                                                             matrix_[row][1] * other.matrix_[1][col] +
+                                                             matrix_[row][2] * other.matrix_[2][col];
+                        }
+                }
+
+                return product;
+        }
+
+        /**
+         * Matrix3 and Pose2 multiplication - matrix * pose [3x3 * 3x1 = 3x1]
+         * @param pose2
+         * @return Pose2 product
+         */
+        inline Pose2 operator*(const Pose2 &pose2) const
+        {
+                Pose2 pose_holder;
+
+                pose_holder.setX(matrix_[0][0] * pose2.getX() + matrix_[0][1] * pose2.getY() + matrix_[0][2] * pose2.getHeading());
+                pose_holder.setY(matrix_[1][0] * pose2.getX() + matrix_[1][1] * pose2.getY() + matrix_[1][2] * pose2.getHeading());
+                pose_holder.setHeading(matrix_[2][0] * pose2.getX() + matrix_[2][1] * pose2.getY() + matrix_[2][2] * pose2.getHeading());
+
+                return pose_holder;
+        }
+
+        /**
+         * In place Matrix3 add.
+         * @param k_matrix
+         */
+        inline void operator+=(const Matrix3 &k_matrix)
+        {
+                for (uint32_t row = 0; row < 3; row++)
+                {
+                        for (uint32_t col = 0; col < 3; col++)
+                        {
+                                matrix_[row][col] += k_matrix.matrix_[row][col];
+                        }
+                }
+        }
+
+        /**
+         * Write Matrix3 onto output stream
+         * @param stream output stream
+         * @param matrix to write
+         */
+        friend inline std::ostream &operator<<(std::ostream &stream, const Matrix3 &matrix)
+        {
+                stream << matrix.toString();
+                return stream;
+        }
 
 private:
-  double m_Matrix[3][3];
+        double matrix_[3][3];
 };
+
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
 
 /**
  * Implementation of a Pose2 transform
@@ -812,91 +813,91 @@ class Transform
 public:
         /**
          * Constructs a transformation from the origin to the given pose
-         * @param rPose pose
+         * @param pose pose
          */
-        Transform(const Pose2 &rPose) // NOLINT
+        Transform(const Pose2 &pose) // NOLINT
         {
-                SetTransform(Pose2(), rPose);
+                setTransform(Pose2(), pose);
         }
 
         /**
          * Constructs a transformation from the first pose to the second pose
-         * @param rPose1 first pose
-         * @param rPose2 second pose
+         * @param pose1 first pose
+         * @param pose2 second pose
          */
-        Transform(const Pose2 &rPose1, const Pose2 &rPose2)
+        Transform(const Pose2 &pose1, const Pose2 &pose2)
         {
-                SetTransform(rPose1, rPose2);
+                setTransform(pose1, pose2);
         }
 
 public:
         /**
          * Transforms the pose according to this transform
-         * @param rSourcePose pose to transform from
+         * @param source_pose pose to transform from
          * @return transformed pose
          */
-        inline Pose2 TransformPose(const Pose2 &rSourcePose)
+        inline Pose2 transformPose(const Pose2 &source_pose)
         {
-                Pose2 newPosition = m_Transform + m_Rotation * rSourcePose;
-                double angle = math::NormalizeAngle(rSourcePose.GetHeading() + m_Transform.GetHeading());
+                Pose2 new_position = transform_ + rotation_ * source_pose;
+                double angle = math::NormalizeAngle(source_pose.getHeading() + transform_.getHeading());
 
-                return Pose2(newPosition.GetPosition(), angle);
+                return Pose2(new_position.getPosition(), angle);
         }
 
         /**
          * Inverse transformation of the pose according to this transform
-         * @param rSourcePose pose to transform from
+         * @param source_pose pose to transform from
          * @return transformed pose
          */
-        inline Pose2 InverseTransformPose(const Pose2 &rSourcePose)
+        inline Pose2 inverseTransformPose(const Pose2 &source_pose)
         {
-                Pose2 newPosition = m_InverseRotation * (rSourcePose - m_Transform);
-                double angle = math::NormalizeAngle(rSourcePose.GetHeading() - m_Transform.GetHeading());
+                Pose2 new_position = inverse_rotation_ * (source_pose - transform_);
+                double angle = math::NormalizeAngle(source_pose.getHeading() - transform_.getHeading());
 
                 // components of transform
-                return Pose2(newPosition.GetPosition(), angle);
+                return Pose2(new_position.getPosition(), angle);
         }
 
 private:
         /**
          * Sets this to be the transformation from the first pose to the second pose
-         * @param rPose1 first pose
-         * @param rPose2 second pose
+         * @param pose1 first pose
+         * @param pose2 second pose
          */
-        void SetTransform(const Pose2 &rPose1, const Pose2 &rPose2)
+        void setTransform(const Pose2 &pose1, const Pose2 &pose2)
         {
-                if (rPose1 == rPose2)
+                if (pose1 == pose2)
                 {
-                        m_Rotation.SetToIdentity();
-                        m_InverseRotation.SetToIdentity();
-                        m_Transform = Pose2();
+                        rotation_.setToIdentity();
+                        inverse_rotation_.setToIdentity();
+                        transform_ = Pose2();
                         return;
                 }
 
                 // heading transformation
-                m_Rotation.FromAxisAngle(0, 0, 1, rPose2.GetHeading() - rPose1.GetHeading());
-                m_InverseRotation.FromAxisAngle(0, 0, 1, rPose1.GetHeading() - rPose2.GetHeading());
+                rotation_.fromAxisAngle(0, 0, 1, pose2.getHeading() - pose1.getHeading());
+                inverse_rotation_.fromAxisAngle(0, 0, 1, pose1.getHeading() - pose2.getHeading());
 
                 // position transformation
-                Pose2 newPosition;
-                if (rPose1.GetX() != 0.0 || rPose1.GetY() != 0.0)
+                Pose2 new_position;
+                if (pose1.getX() != 0.0 || pose1.getY() != 0.0)
                 {
-                        newPosition = rPose2 - m_Rotation * rPose1;
+                        new_position = pose2 - rotation_ * pose1;
                 }
                 else
                 {
-                        newPosition = rPose2;
+                        new_position = pose2;
                 }
 
-                m_Transform = Pose2(newPosition.GetPosition(), rPose2.GetHeading() - rPose1.GetHeading());
+                transform_ = Pose2(new_position.getPosition(), pose2.getHeading() - pose1.getHeading());
         }
 
 private:
         // pose transformation
-        Pose2 m_Transform;
+        Pose2 transform_;
 
-        Matrix3 m_Rotation;
-        Matrix3 m_InverseRotation;
+        Matrix3 rotation_;
+        Matrix3 inverse_rotation_;
 }; // Transform
 
 ///////////////////////////////////////////////////////////////
@@ -914,8 +915,8 @@ public:
          * Default constructor
          */
         Size2()
-                : width_(0),
-                height_(0)
+            : width_(0),
+              height_(0)
         {
         }
 
@@ -925,11 +926,22 @@ public:
          * @param height
          */
         Size2(T width, T height)
-                : width_(width),
-                height_(height)
+            : width_(width),
+              height_(height)
         {
         }
 
+        /**
+         * Copy constructor
+         * @param other
+         */
+        Size2(const Size2 &other)
+            : width_(other.width_),
+              height_(other.height_)
+        {
+        }
+
+public:
         /**
          * Gets the width
          * @return the width
@@ -937,6 +949,15 @@ public:
         inline const T getWidth() const
         {
                 return width_;
+        }
+
+        /**
+         * Sets the width
+         * @param width
+         */
+        inline void setWidth(T width)
+        {
+                width_ = width;
         }
 
         /**
@@ -948,25 +969,78 @@ public:
                 return height_;
         }
 
+        /**
+         * Sets the height
+         * @param height
+         */
+        inline void setHeight(T height)
+        {
+                height_ = height;
+        }
+
+        /**
+         * Assignment operator
+         */
+        inline Size2 &operator=(const Size2 &other)
+        {
+                width_ = other.width_;
+                height_ = other.height_;
+
+                return *this;
+        }
+
+        /**
+         * Equality operator
+         */
+        inline bool operator==(const Size2 &other) const
+        {
+                return width_ == other.width_ && height_ == other.height_;
+        }
+
+        /**
+         * Inequality operator
+         */
+        inline bool operator!=(const Size2 &other) const
+        {
+                return width_ != other.width_ || height_ != other.height_;
+        }
+
+        /**
+         * Write Size2 onto output stream
+         * @param stream output stream
+         * @param size to write
+         */
+        friend inline std::ostream &operator<<(std::ostream &stream, const Size2 &size)
+        {
+                stream << "(" << size.width_ << ", " << size.height_ << ")";
+                return stream;
+        }
+
 private:
         T width_;
         T height_;
-
 }; // Size2
 
 ///////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////
 
+/**
+ * Defines a bounding box in 2-dimensional real space.
+ */
 class BoundingBox2
 {
 public:
+        /*
+         * Default constructor
+         */
         BoundingBox2()
             : minimum_(999999999999999999.99999, 999999999999999999.99999),
               maximum_(-999999999999999999.99999, -999999999999999999.99999)
         {
         }
 
+public:
         /**
          * Get bounding box minimum
          */
@@ -978,9 +1052,9 @@ public:
         /**
          * Set bounding box minimum
          */
-        inline void setMinimum(const Vector2<double> &minimum)
+        inline void setMinimum(const Vector2<double> &mMinimum)
         {
-                minimum_ = minimum;
+                minimum_ = mMinimum;
         }
 
         /**
@@ -994,9 +1068,9 @@ public:
         /**
          * Set bounding box maximum
          */
-        inline void setMaximum(const Vector2<double> &maximum)
+        inline void setMaximum(const Vector2<double> &rMaximum)
         {
-                maximum_ = maximum;
+                maximum_ = rMaximum;
         }
 
         /**
@@ -1006,7 +1080,7 @@ public:
         {
                 Vector2<double> size = maximum_ - minimum_;
 
-                return Size2<double>(size.GetX(), size.GetY());
+                return Size2<double>(size.getX(), size.getY());
         }
 
         /**
@@ -1014,19 +1088,29 @@ public:
          */
         inline void add(const Vector2<double> &point)
         {
-                minimum_.MakeFloor(point);
-                maximum_.MakeCeil(point);
+                minimum_.makeFloor(point);
+                maximum_.makeCeil(point);
         }
 
         /**
          * Add other bounding box to bounding box
          */
-        inline void add(const BoundingBox2 &bounding_box)
+        inline void add(const BoundingBox2 &rBoundingBox)
         {
-                add(bounding_box.getMinimum());
-                add(bounding_box.getMaximum());
+                add(rBoundingBox.getMinimum());
+                add(rBoundingBox.getMaximum());
         }
 
+        /**
+         * Whether the given point is in the bounds of this box
+         * @param point
+         * @return in bounds?
+         */
+        inline bool isInBounds(const Vector2<double> &point) const
+        {
+                return math::InRange(point.getX(), minimum_.getX(), maximum_.getX()) &&
+                       math::InRange(point.getY(), minimum_.getY(), maximum_.getY());
+        }
 private:
         Vector2<double> minimum_;
         Vector2<double> maximum_;
@@ -1036,21 +1120,18 @@ private:
 ///////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////
 
+/**
+ * Stores x, y, width and height that represents the location and size of a rectangle
+ * (x, y) is at bottom left in mapper!
+ */
 template <typename T>
 class Rectangle2
 {
-private:
-        Vector2<T> position_;
-        Size2<T> size_;
-
 public:
+        /**
+         * Default constructor
+         */
         Rectangle2()
-        {
-        }
-
-        Rectangle2(const Rectangle2 &other)
-            : position_(other.position_),
-              size_(other.size_)
         {
         }
 
@@ -1067,24 +1148,43 @@ public:
         {
         }
 
+        /**
+         * Constructor initializing rectangle parameters
+         * @param position (x,y)-coordinate of rectangle
+         * @param size Size of the rectangle
+         */
+        Rectangle2(const Vector2<T> &position, const Size2<T> &size)
+            : position_(position),
+              size_(size)
+        {
+        }
+
+        /**
+         * Copy constructor
+         */
+        Rectangle2(const Rectangle2 &other)
+            : position_(other.position_),
+              size_(other.size_)
+        {
+        }
+
 public:
-        inline T getWidth() const
-        {
-                return size_.getWidth();
-        }
-
-        inline T getHeight() const
-        {
-                return size_.getHeight();
-        }
-
         /**
          * Gets the x-coordinate of the left edge of this rectangle
          * @return the x-coordinate of the left edge of this rectangle
          */
         inline T getX() const
         {
-                return position_.GetX();
+                return position_.getX();
+        }
+
+        /**
+         * Sets the x-coordinate of the left edge of this rectangle
+         * @param x the x-coordinate of the left edge of this rectangle
+         */
+        inline void setX(T x)
+        {
+                position_.setX(x);
         }
 
         /**
@@ -1093,59 +1193,198 @@ public:
          */
         inline T getY() const
         {
-                return position_.GetY();
+                return position_.getY();
         }
 
         /**
+         * Sets the y-coordinate of the bottom edge of this rectangle
+         * @param y the y-coordinate of the bottom edge of this rectangle
+         */
+        inline void setY(T y)
+        {
+                position_.setY(y);
+        }
+
+        /**
+         * Gets the width of this rectangle
+         * @return the width of this rectangle
+         */
+        inline T getWidth() const
+        {
+                return size_.getWidth();
+        }
+
+        /**
+         * Sets the width of this rectangle
+         * @param width the width of this rectangle
+         */
+        inline void setWidth(T width)
+        {
+                size_.setWidth(width);
+        }
+
+        /**
+         * Gets the height of this rectangle
+         * @return the height of this rectangle
+         */
+        inline T getHeight() const
+        {
+                return size_.getHeight();
+        }
+
+        /**
+         * Sets the height of this rectangle
+         * @param height the height of this rectangle
+         */
+        inline void setHeight(T height)
+        {
+                size_.setHeight(height);
+        }
+
+        /**
+         * Gets the position of this rectangle
+         * @return the position of this rectangle
+         */
+        inline const Vector2<T> &getPosition() const
+        {
+                return position_;
+        }
+
+        /**
+         * Sets the position of this rectangle
+         * @param x x
+         * @param y y
+         */
+        inline void setPosition(const T &x, const T &y)
+        {
+                position_ = Vector2<T>(x, y);
+        }
+
+        /**
+         * Sets the position of this rectangle
+         * @param position position
+         */
+        inline void setPosition(const Vector2<T> &position)
+        {
+                position_ = position;
+        }
+
+        /**
+         * Gets the size of this rectangle
+         * @return the size of this rectangle
+         */
+        inline const Size2<T> &getSize() const
+        {
+                return size_;
+        }
+
+        /**
+         * Sets the size of this rectangle
+         * @param size size
+         */
+        inline void setSize(const Size2<T> &size)
+        {
+                size_ = size;
+        }
+
+        /**
+         * Gets the center of this rectangle
+         * @return the center of this rectangle
+         */
+        inline const Vector2<T> getCenter() const
+        {
+                return Vector2<T>(position_.getX() + size_.getWidth() * 0.5,
+                                  position_.getY() + size_.getHeight() * 0.5);
+        }
+
+public:
+        /**
          * Assignment operator
          */
-        Rectangle2 &operator=(const Rectangle2 &rOther)
+        Rectangle2 &operator=(const Rectangle2 &other)
         {
-                position_ = rOther.position_;
-                size_ = rOther.size_;
+                position_ = other.position_;
+                size_ = other.size_;
 
                 return *this;
         }
 
+        /**
+         * Equality operator
+         */
+        inline double operator==(const Rectangle2 &other) const
+        {
+                return position_ == other.position_ && size_ == other.size_;
+        }
+
+        /**
+         * Inequality operator
+         */
+        inline double operator!=(const Rectangle2 &other) const
+        {
+                return position_ != other.position_ || size_ != other.size_;
+        }
+
+private:
+        Vector2<T> position_;
+        Size2<T> size_;
 }; // Rectangle2
 
 ///////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////
 
-
-
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
-
+/**
+ * The LaserRangeFinder defines a laser sensor that provides the pose offset position of a localized range scan relative to the robot.
+ * The user can set an offset pose for the sensor relative to the robot coordinate system. If no value is provided
+ * by the user, the sensor is set to be at the origin of the robot coordinate system.
+ * The LaserRangeFinder contains parameters for physical laser sensor used by the mapper for scan matching
+ * Also contains information about the maximum range of the sensor and provides a threshold
+ * for limiting the range of readings.
+ * The optimal value for the range threshold depends on the angular resolution of the scan and
+ * the desired map resolution.  RangeThreshold should be set as large as possible while still
+ * providing "solid" coverage between consecutive range readings.  The diagram below illustrates
+ * the relationship between map resolution and the range threshold.
+ */
 class LaserRangeFinder
 {
 private:
+        // sensor parameters
         double range_threshold_;
-
         double minimum_range_;
         double maximum_range_;
 
+        bool is_360_laser_;
         double minimum_angle_;
         double maximum_angle_;
-
         double angular_resolution_;
-
         uint32_t number_of_range_readings_;
 
         Pose2 offset_pose_;
 
-        std::string frame_id_;
+        std::string frame_id_;  
 
 public:
         LaserRangeFinder()
         {
         }
 
+public:
         inline void setFrameId(std::string frame_id)
         {
                 frame_id_ = frame_id;
+        }
+
+        inline void setIs360Laser(bool is_360_laser)
+        {
+                is_360_laser_ = is_360_laser;
+
+                update();
+        }
+
+        inline bool getIs360Laser() const
+        {
+                return is_360_laser_;
         }
 
         inline void setMinimumRange(double minimum_range)
@@ -1175,13 +1414,18 @@ public:
 
         inline void setRangeThreshold(double range_threshold)
         {
-                range_threshold_ = range_threshold;
+                // make sure rangeThreshold is within laser range finder range
+                range_threshold_ = math::Clip(range_threshold, getMinimumRange(), getMaximumRange());
+
+                if (math::DoubleEqual(getRangeThreshold(), range_threshold) == false) {
+                        std::cout << "Info: clipped range threshold to be within minimum and maximum range!" << std::endl;
+                }
         }
 
         inline void setMaximumAngle(double maximum_angle)
         {
                 maximum_angle_ = maximum_angle;
-                updateNumberOfRangeReadings();
+                update();
         }
 
         inline double getMaximumAngle()
@@ -1192,7 +1436,7 @@ public:
         inline void setMinimumAngle(double minimum_angle)
         {
                 minimum_angle_ = minimum_angle;
-                updateNumberOfRangeReadings();
+                update();
         }
 
         inline double getMinimumAngle() const
@@ -1203,7 +1447,7 @@ public:
         inline void setAngularResolution(double angular_resolution)
         {
                 angular_resolution_ = angular_resolution;
-                updateNumberOfRangeReadings();
+                update();
         }
 
         inline double getAngularResolution() const
@@ -1226,12 +1470,23 @@ public:
                 return offset_pose_;
         }
 
-        void updateNumberOfRangeReadings()
+        /**
+         * Set the number of range readings based on the minimum and
+         * maximum angles of the sensor and the angular resolution
+         */
+        void update()
         {
-                number_of_range_readings_ = static_cast<uint32_t>(math::Round(
-                    (getMaximumAngle() -
-                     getMinimumAngle()) /
-                    getAngularResolution()));
+                int residual = 1;
+                if (getIs360Laser()) {
+                        // residual is 0 by 360 lidar conventions
+                        residual = 0;
+                }
+
+                number_of_range_readings_ = static_cast<uint32_t>(
+                        math::Round((getMaximumAngle() -
+                                     getMinimumAngle()) /
+                                     getAngularResolution()) +
+                                     residual);
         }
 }; // LaserRangeFinder
 
@@ -1253,23 +1508,62 @@ typedef std::vector<double> RangeReadingsVector;
 class LocalizedRangeScan
 {
 private:
-        int32_t scan_id_;
+        /**
+         * Corrected pose of robot calculated by mapper (or localizer)
+         */
         Pose2 corrected_pose_;
+
+        /**
+         * Odometric pose of robot
+         */
+
         Pose2 odom_pose_;
+        
         /**
          * Average of all the point readings
          */
         Pose2 barycenter_pose_;
-        std::unique_ptr<double[]> range_readings_;
-        uint32_t number_of_range_readings_;
-        double time_;
+
+        /**
+         * Bounding box of localized range scan
+         */
         BoundingBox2 bounding_box_;
+        
+        /**
+         * Internal flag used to update point readings, barycenter and bounding box
+         */
         bool is_dirty_;
-        std::vector<Vector2<double>> point_readings_;
-        std::vector<Vector2<double>> unfiltered_point_readings_;
+
+        /**
+         * ID unique across all sensor data
+         */
+        int32_t scan_id_;
+
+        /**
+         * Time the sensor data was created
+         */
+        double time_;
+
+        /**
+         * Laser that created this sensor data
+         */
         LaserRangeFinder *laser_;
 
+        std::unique_ptr<double[]> range_readings_;
+        uint32_t number_of_range_readings_;
+        std::vector<Vector2<double>> point_readings_;
+        std::vector<Vector2<double>> unfiltered_point_readings_;
         mutable boost::shared_mutex lock_;
+
+private:
+        /**
+         * Restrict copy constructor
+         */
+        LocalizedRangeScan(const LocalizedRangeScan &);
+        /**
+         * Restrict assignment operator
+         */
+        const LocalizedRangeScan &operator=(const LocalizedRangeScan &);
 
 public:
         LocalizedRangeScan()
@@ -1277,14 +1571,21 @@ public:
         }
 
         LocalizedRangeScan(LaserRangeFinder *laser, const RangeReadingsVector &range_readings)
-            : is_dirty_(true), laser_(laser)
+        : is_dirty_(true), 
+          laser_(laser)
         {
-                number_of_range_readings_ = range_readings.size();
+                if (!range_readings.empty()) {
+                        number_of_range_readings_ = range_readings.size();
+                        range_readings_ = std::make_unique<double[]>(number_of_range_readings_);
 
-                range_readings_ = std::make_unique<double[]>(number_of_range_readings_);
-                std::copy(range_readings.begin(), range_readings.end(), range_readings_.get());
+                        uint32_t index = 0;
+                        for (const auto &reading : range_readings) {
+                                range_readings_[index++] = reading;
+                        }
+                }
         }
 
+public:
         inline void setScanId(int32_t scan_id)
         {
                 scan_id_ = scan_id;
@@ -1329,10 +1630,10 @@ public:
         inline Pose2 getCorrectedAt(const Pose2 &sensor_pose) const
         {
                 Pose2 deviceOffsetPose2 = getLaserRangeFinder()->getOffsetPose();
-                double offsetLength = deviceOffsetPose2.GetPosition().Length();
-                double offsetHeading = deviceOffsetPose2.GetHeading();
-                double angleoffset = atan2(deviceOffsetPose2.GetY(), deviceOffsetPose2.GetX());
-                double correctedHeading = math::NormalizeAngle(sensor_pose.GetHeading());
+                double offsetLength = deviceOffsetPose2.getPosition().computeLength();
+                double offsetHeading = deviceOffsetPose2.getHeading();
+                double angleoffset = atan2(deviceOffsetPose2.getY(), deviceOffsetPose2.getX());
+                double correctedHeading = math::NormalizeAngle(sensor_pose.getHeading());
                 Pose2 worldSensorOffset = Pose2(offsetLength * cos(correctedHeading + angleoffset - offsetHeading),
                                                 offsetLength * sin(correctedHeading + angleoffset - offsetHeading),
                                                 offsetHeading);
@@ -1345,10 +1646,6 @@ public:
                 time_ = time;
         }
 
-        /**
-         * Gets sensor data time
-         * @return time
-         */
         inline double getTime() const
         {
                 return time_;
@@ -1365,20 +1662,16 @@ public:
         inline const std::vector<Vector2<double>> &getPointReadings(bool want_filtered = false) const
         {
                 boost::shared_lock<boost::shared_mutex> lock(lock_);
-                if (is_dirty_)
-                {
+                if (is_dirty_) {
                         // throw away constness and do an update!
                         lock.unlock();
                         boost::unique_lock<boost::shared_mutex> uniqueLock(lock_);
                         const_cast<LocalizedRangeScan *>(this)->update();
                 }
 
-                if (want_filtered == true)
-                {
+                if (want_filtered == true) {
                         return point_readings_;
-                }
-                else
-                {
+                } else {
                         return unfiltered_point_readings_;
                 }
         }
@@ -1389,17 +1682,17 @@ public:
          */
         inline Pose2 getSensorPose() const
         {
-                return GetSensorAt(corrected_pose_);
+                return getSensorAt(corrected_pose_);
         }
 
         /**
          * Computes the position of the sensor if the robot were at the given pose
-         * @param rPose
+         * @param robot_pose
          * @return sensor pose
          */
-        inline Pose2 GetSensorAt(const Pose2 &rPose) const
+        inline Pose2 getSensorAt(const Pose2 &robot_pose) const
         {
-                return Transform(rPose).TransformPose(getLaserRangeFinder()->getOffsetPose());
+                return Transform(robot_pose).transformPose(getLaserRangeFinder()->getOffsetPose());
         }
 
         /**
@@ -1424,8 +1717,7 @@ public:
         {
                 boost::shared_lock<boost::shared_mutex> lock(lock_);
 
-                if (is_dirty_)
-                {
+                if (is_dirty_) {
                         // throw away constness and do an update!
                         lock.unlock();
                         boost::unique_lock<boost::shared_mutex> unique_lock(lock_);
@@ -1442,12 +1734,11 @@ public:
 
         /**
          * Moves the scan by moving the robot pose to the given location and update point readings.
-         * @param rPose new pose of the robot of this scan
+         * @param pose new pose of the robot of this scan
          */
         inline void setCorrectedPoseAndUpdate(const Pose2 &pose)
         {
                 setCorrectedPose(pose);
-
                 update();
         }
 
@@ -1457,8 +1748,7 @@ public:
         inline const Pose2 &getBarycenterPose() const
         {
                 boost::shared_lock<boost::shared_mutex> lock(lock_);
-                if (is_dirty_)
-                {
+                if (is_dirty_) {
                         // throw away constness and do an update!
                         lock.unlock();
                         boost::unique_lock<boost::shared_mutex> unique_lock(lock_);
@@ -1476,8 +1766,7 @@ public:
         inline Pose2 getReferencePose(bool use_barycenter) const
         {
                 boost::shared_lock<boost::shared_mutex> lock(lock_);
-                if (is_dirty_)
-                {
+                if (is_dirty_) {
                         // throw away constness and do an update!
                         lock.unlock();
                         boost::unique_lock<boost::shared_mutex> unique_lock(lock_);
@@ -1494,29 +1783,29 @@ private:
          */
         void update()
         {
-                if (laser_ != nullptr)
-                {
+                if (laser_ != nullptr) {
                         point_readings_.clear();
                         unfiltered_point_readings_.clear();
 
                         double range_threshold = laser_->getRangeThreshold();
                         double minimum_angle = laser_->getMinimumAngle();
                         double angular_resolution = laser_->getAngularResolution();
+                        std::cout << "within update func" << std::endl;
                         Pose2 scan_pose = getSensorPose();
                         // compute point readings
                         Vector2<double> range_points_sum(0, 0);
                         uint32_t beam_num = 0;
 
-                        for (uint32_t i = 0; i < laser_->getNumberOfRangeReadings(); i++, beam_num++)
-                        {
+                        for (uint32_t i = 0; i < laser_->getNumberOfRangeReadings(); i++, beam_num++) {
+                                std::cout << "before get range reading" << std::endl;
                                 double range_reading = getRangeReadings()[i];
-                                double angle = scan_pose.GetHeading() + minimum_angle + beam_num * angular_resolution;
+                                std::cout << "after get range reading" << std::endl;
+                                double angle = scan_pose.getHeading() + minimum_angle + beam_num * angular_resolution;
                                 Vector2<double> point;
-                                point.SetX(scan_pose.GetX() + (range_reading * cos(angle)));
-                                point.SetY(scan_pose.GetY() + (range_reading * sin(angle)));
+                                point.setX(scan_pose.getX() + (range_reading * cos(angle)));
+                                point.setY(scan_pose.getY() + (range_reading * sin(angle)));
 
-                                if (!math::InRange(range_reading, laser_->getMinimumRange(), range_threshold))
-                                {
+                                if (!math::InRange(range_reading, laser_->getMinimumRange(), range_threshold)) {
                                         unfiltered_point_readings_.push_back(point);
                                         continue;
                                 }
@@ -1528,24 +1817,21 @@ private:
 
                         // compute barycenter
                         double n_points = static_cast<double>(point_readings_.size());
-                        if (n_points != 0.0)
-                        {
+                        if (n_points != 0.0) {
                                 Vector2<double> average_position = Vector2<double>(range_points_sum / n_points);
                                 barycenter_pose_ = Pose2(average_position, 0.0);
-                        }
-                        else
-                        {
+                        } else {
                                 barycenter_pose_ = scan_pose;
                         }
 
                         // calculate bounding box of scan
                         bounding_box_ = BoundingBox2();
-                        bounding_box_.add(scan_pose.GetPosition());
+                        bounding_box_.add(scan_pose.getPosition());
 
-                        for (const auto &point_reading : point_readings_)
-                        {
+                        for (const auto &point_reading : point_readings_) {
                                 bounding_box_.add(point_reading);
                         }
+                        std::cout << "done update func" << std::endl;
                 }
 
                 is_dirty_ = false;
@@ -1565,9 +1851,23 @@ private:
         uint32_t size_;
 
 public:
+        /**
+         * Constructs lookup array
+         */
         LookupArray()
-            : array_(nullptr), capacity_(0), size_(0)
+        : array_(nullptr), 
+          capacity_(0), 
+          size_(0)
         {
+        }
+
+public:
+        /**
+         * Clear array
+         */
+        void clear()
+        {
+                memset(array_.get(), 0, sizeof(int32_t) * capacity_);
         }
 
         /**
@@ -1598,6 +1898,30 @@ public:
         uint32_t getSize() const
         {
                 return size_;
+        }
+
+        /**
+         * Gets reference to value at given index
+         * @param index
+         * @return reference to value at index
+         */
+        inline int32_t &operator[](uint32_t index)
+        {
+                assert(index < size_);
+
+                return array_[index];
+        }
+
+        /**
+         * Gets value at given index
+         * @param index
+         * @return value at index
+         */
+        inline int32_t operator[](uint32_t index) const
+        {
+                assert(index < size_);
+
+                return array_[index];
         }
 
         /**
@@ -1638,10 +1962,11 @@ private:
 
 public:
         CoordinateConverter()
-            : scale_(20.0)
+        : scale_(20.0)
         {
         }
 
+public:
         /**
          * Sets the size
          * @param size
@@ -1699,38 +2024,82 @@ public:
          * @return grid coordinate
          */
         inline Vector2<int32_t> convertWorldToGrid(
-            const Vector2<double> &world,
-            bool flip_y = false) const
+                const Vector2<double> &world,
+                bool flip_y = false) const
         {
-                double grid_x = (world.GetX() - offset_.GetX()) * scale_;
+                double grid_x = (world.getX() - offset_.getX()) * scale_;
                 double grid_y = 0.0;
 
-                if (flip_y == false)
-                {
-                        grid_y = (world.GetY() - offset_.GetY()) * scale_;
-                }
-                else
-                {
-                        grid_y = (size_.getHeight() / scale_ - world.GetY() + offset_.GetY()) * scale_;
+                if (flip_y == false) {
+                        grid_y = (world.getY() - offset_.getY()) * scale_;
+                } else {
+                        grid_y = (size_.getHeight() / scale_ - world.getY() + offset_.getY()) * scale_;
                 }
 
                 return Vector2<int32_t>(
-                    static_cast<int32_t>(math::Round(grid_x)),
-                    static_cast<int32_t>(math::Round(grid_y)));
+                        static_cast<int32_t>(math::Round(grid_x)),
+                        static_cast<int32_t>(math::Round(grid_y)));
         }
-};
 
-/////////////////////////////////////////////////////////
+        /**
+         * Converts the point from grid coordinates to world coordinates
+         * @param grid world coordinate
+         * @param flipY
+         * @return world coordinate
+         */
+        inline Vector2<double> convertGridToWorld(
+                const Vector2<int32_t> &grid,
+                bool flipY = false) const
+        {
+                double worldX = offset_.getX() + grid.getX() / scale_;
+                double worldY = 0.0;
+
+                if (flipY == false) {
+                        worldY = offset_.getY() + grid.getY() / scale_;
+                } else {
+                        worldY = offset_.getY() + (size_.getHeight() - grid.getY()) / scale_;
+                }
+
+                return Vector2<double>(worldX, worldY);
+        }
+
+        /**
+         * Gets the bounding box
+         * @return bounding box
+         */
+        inline BoundingBox2 getBoundingBox() const
+        {
+                BoundingBox2 box;
+
+                double minX = getOffset().getX();
+                double minY = getOffset().getY();
+                double maxX = minX + getSize().getWidth() * getResolution();
+                double maxY = minY + getSize().getHeight() * getResolution();
+
+                box.setMinimum(getOffset());
+                box.setMaximum(Vector2<double>(maxX, maxY));
+                return box;
+        }
+}; // CoordinateConverter
+
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+
 class OccupancyGrid;
 
 class CellUpdater
 {
 public:
         CellUpdater(OccupancyGrid *grid)
-            : occupancy_grid_(grid)
+        : occupancy_grid_(grid)
         {
         }
 
+        /**
+         * Updates the cell at the given index based on the grid's hits and pass counters
+         * @param index
+         */
         void operator()(uint32_t index);
 
 private:
@@ -1751,30 +2120,100 @@ private:
         T *data_;                                   // grid data
         CoordinateConverter *coordinate_converter_; // utility to convert between world coordinates and grid coordinates
 
-public:
-        Grid()
-        {
-        }
-
+protected:
         /**
          * Constructs grid of given size
          * @param width
          * @param height
          */
         Grid(int32_t width, int32_t height)
-            : data_(nullptr),
-              coordinate_converter_(nullptr)
+        : data_(nullptr),
+          coordinate_converter_(nullptr)
         {
                 resize(width, height);
         }
 
-        static std::unique_ptr<Grid<T>> createGrid(int32_t width, int32_t height, double resolution)
+public:
+        Grid()
         {
-                std::unique_ptr<Grid<T>> grid = std::make_unique<Grid<T>>(width, height);
+        }
+
+        /**
+         * Destructor
+         */
+        virtual ~Grid()
+        {
+                if (data_)
+                {
+                        delete[] data_;
+                }
+                if (coordinate_converter_)
+                {
+                        delete coordinate_converter_;
+                }
+        }
+
+        /**
+         * Creates a grid of given size and resolution
+         * @param width
+         * @param height
+         * @param resolution
+         * @return grid pointer
+         */
+        static Grid *createGrid(int32_t width, int32_t height, double resolution)
+        {
+                Grid *grid = new Grid(width, height);
 
                 grid->getCoordinateConverter()->setScale(1.0 / resolution);
 
                 return grid;
+        }
+
+public:
+        /**
+         * Clear out the grid data
+         */
+        void clear()
+        {
+                memset(data_, 0, getDataSize() * sizeof(T));
+        }
+
+        /**
+         * Resizes the grid (deletes all old data)
+         * @param width
+         * @param height
+         */
+        virtual void resize(int32_t width, int32_t height)
+        {
+                width_ = width;
+                height_ = height;
+                width_step_ = math::AlignValue<int32_t>(width, 8);
+
+                if (data_ != nullptr) {
+                        delete[] data_;
+                        data_ = nullptr;
+                }
+
+                try
+                {
+                        data_ = new T[getDataSize()];
+
+                        if (coordinate_converter_ == nullptr)
+                        {
+                                coordinate_converter_ = new CoordinateConverter();
+                        }
+                        std::cout << "within resize" << std::endl;
+                        coordinate_converter_->setSize(Size2<int32_t>(width, height));
+                }
+                catch (...)
+                {
+                        data_ = nullptr;
+                        width_ = 0;
+                        height_ = 0;
+                        width_step_ = 0;
+                }
+
+                clear();
         }
 
         /**
@@ -1788,7 +2227,7 @@ public:
 
         /**
          * Gets pointer to data at given grid coordinate
-         * @param rGrid grid coordinate
+         * @param grid grid coordinate
          * @return grid point
          */
         T *getDataPointer(const Vector2<int32_t> &grid)
@@ -1852,13 +2291,11 @@ public:
         void traceLine(int32_t x0, int32_t y0, int32_t x1, int32_t y1, CellUpdater *cell_updater = nullptr)
         {
                 bool steep = abs(y1 - y0) > abs(x1 - x0);
-                if (steep)
-                {
+                if (steep) {
                         std::swap(x0, y0);
                         std::swap(x1, y1);
                 }
-                if (x0 > x1)
-                {
+                if (x0 > x1) {
                         std::swap(x0, x1);
                         std::swap(y0, y1);
                 }
@@ -1869,47 +2306,37 @@ public:
                 int32_t y_step;
                 int32_t y = y0;
 
-                if (y0 < y1)
-                {
+                if (y0 < y1) {
                         y_step = 1;
-                }
-                else
-                {
+                } else {
                         y_step = -1;
                 }
 
                 int32_t point_x;
                 int32_t point_y;
-                for (int32_t x = x0; x <= x1; x++)
-                {
-                        if (steep)
-                        {
+                for (int32_t x = x0; x <= x1; x++) {
+                        if (steep) {
                                 point_x = y;
                                 point_y = x;
-                        }
-                        else
-                        {
+                        } else {
                                 point_x = x;
                                 point_y = y;
                         }
 
                         error += delta_y;
 
-                        if (2 * error >= delta_x)
-                        {
+                        if (2 * error >= delta_x) {
                                 y += y_step;
                                 error -= delta_x;
                         }
 
                         Vector2<int32_t> grid_index(point_x, point_y);
-                        if (isValidGridIndex(grid_index))
-                        {
+                        if (isValidGridIndex(grid_index)) {
                                 int32_t index = getGridIndex(grid_index, false);
                                 T *grid_pointer = getDataPointer();
                                 grid_pointer[index]++;
 
-                                if (cell_updater != nullptr)
-                                {
+                                if (cell_updater != nullptr) {
                                         (*cell_updater)(index);
                                 }
                         }
@@ -1922,7 +2349,7 @@ public:
          */
         inline bool isValidGridIndex(const Vector2<int32_t> &grid) const
         {
-                return (grid.GetX() < width_ && grid.GetY() < height_);
+                return (grid.getX() < width_ && grid.getY() < height_);
         }
 
         /**
@@ -1952,7 +2379,7 @@ public:
                         }
                 }
 
-                int32_t index = grid.GetX() + (grid.GetY() * width_step_);
+                int32_t index = grid.getX() + (grid.getY() * width_step_);
 
                 if (boundary_check == true) {
                         assert(math::IsUpTo(index, getDataSize()));
@@ -1971,14 +2398,6 @@ public:
         }
 
         /**
-         * Clear out the grid data
-         */
-        void clear()
-        {
-                memset(data_, 0, getDataSize() * sizeof(T));
-        }
-
-        /**
          * Gets the coordinate converter for this grid
          * @return coordinate converter
          */
@@ -1986,50 +2405,11 @@ public:
         {
                 return coordinate_converter_;
         }
-
-        /**
-         * Resizes the grid (deletes all old data)
-         * @param width
-         * @param height
-         */
-        virtual void resize(int32_t width, int32_t height)
-        {
-                width_ = width;
-                height_ = height;
-                width_step_ = math::AlignValue<int32_t>(width, 8);
-
-                if (data_ != nullptr)
-                {
-                        delete[] data_;
-                        data_ = nullptr;
-                }
-
-                try
-                {
-                        data_ = new T[getDataSize()];
-
-                        if (coordinate_converter_ == nullptr) {
-                                coordinate_converter_ = new CoordinateConverter();
-                        }
-                        coordinate_converter_->setSize(Size2<int32_t>(width, height));
-                }
-                catch (...)
-                {
-                        data_ = nullptr;
-                        width_ = 0;
-                        height_ = 0;
-                        width_step_ = 0;
-                }
-
-                clear();
-        }
 }; // Grid
 
 ///////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////
-
-//////////////////////////////////////////////////////////////
 
 typedef std::vector<Vector2<double>> PointVectorDouble;
 /**
@@ -2039,7 +2419,7 @@ typedef std::vector<Vector2<double>> PointVectorDouble;
  *
  * Used heavily in mapper and localizer.
  *
- * In the localizer, this is a huge speed up for calculating possible position.  For each particle,
+ * In the localizer, this is a huge speed up for calculating possible position. For each particle,
  * a probability is calculated.  The range scan is the same, but all grid indexes at all possible angles are
  * calculated.  So when calculating the particle probability at a specific angle, the index table is used
  * to look up probability in probability grid!
@@ -2064,7 +2444,7 @@ public:
         {
         }
 
-        GridIndexLookup(Grid<T> *grid) // NOLINT
+        GridIndexLookup(Grid<T> *grid)
             : grid_(grid),
               capacity_(0),
               size_(0)
@@ -2085,10 +2465,10 @@ public:
 
         /**
          * Compute lookup table of the points of the given scan for the given angular space
-         * @param pScan the scan
-         * @param angleCenter
-         * @param angleOffset computes lookup arrays for the angles within this offset around angleStart
-         * @param angleResolution how fine a granularity to compute lookup arrays in the angular space
+         * @param scan the scan
+         * @param angle_center
+         * @param angle_offset computes lookup arrays for the angles within this offset around angleStart
+         * @param angle_resolution how fine a granularity to compute lookup arrays in the angular space
          */
         void computeOffsets(
             LocalizedRangeScan *scan,
@@ -2115,7 +2495,7 @@ public:
                 for (const auto &point : point_readings)
                 {
                         // do inverse transform to get points in local coordinates
-                        Pose2 vec = transform.InverseTransformPose(Pose2(point, 0.0));
+                        Pose2 vec = transform.inverseTransformPose(Pose2(point, 0.0));
                         local_points.push_back(vec);
                 }
 
@@ -2133,9 +2513,9 @@ public:
 private:
         /**
          * Compute lookup value of points for given angle
-         * @param angleIndex
+         * @param angle_index
          * @param angle
-         * @param rLocalPoints
+         * @param local_points
          */
         void computeOffsets(
             uint32_t angle_index, double angle, const Pose2Vector &local_points,
@@ -2158,7 +2538,7 @@ private:
 
                 for (const auto &point : local_points)
                 {
-                        const Vector2<double> &position = point.GetPosition();
+                        const Vector2<double> &position = point.getPosition();
                         if (std::isnan(scan->getRangeReadings()[reading_index]) ||
                             std::isinf(scan->getRangeReadings()[reading_index]))
                         {
@@ -2169,8 +2549,8 @@ private:
 
                         // counterclockwise rotation and that rotation is about the origin (0, 0).
                         Vector2<double> offset;
-                        offset.SetX(cosine * position.GetX() - sine * position.GetY());
-                        offset.SetY(sine * position.GetX() + cosine * position.GetY());
+                        offset.setX(cosine * position.getX() - sine * position.getY());
+                        offset.setY(sine * position.getX() + cosine * position.getY());
 
                         // have to compensate for the grid offset when getting the grid index
                         Vector2<int32_t> grid_point = grid_->convertWorldToGrid(offset + grid_offset);
@@ -2218,18 +2598,29 @@ private:
 ///////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////
 
-
-
+/**
+ * Occupancy grid definition. See GridStates for possible grid values.
+ */
 class OccupancyGrid : public Grid<uint8_t>
 {
 
         friend class CellUpdater;
 
 private:
-        double occupancy_threshold_;
-        uint32_t min_pass_through_;
-        CellUpdater *cell_updater_;
+        std::unique_ptr<CellUpdater> cell_updater_;
 
+        ////////////////////////////////////////////////////////////
+        // NOTE: These two values are dependent on the resolution.  If the resolution is too small,
+        // then not many beams will hit the cell!
+
+        // Number of beams that must pass through a cell before it will be considered to be occupied
+        // or unoccupied.  This prevents stray beams from messing up the map.
+        uint32_t min_pass_through_;
+
+        // Minimum ratio of beams hitting cell to beams passing through cell to be marked as occupied
+        double occupancy_threshold_;
+
+private:
         /**
          * Restrict the copy constructor
          */
@@ -2263,43 +2654,48 @@ public:
             int32_t width, int32_t height,
             const Vector2<double> &offset,
             double resolution)
-            : Grid<uint8_t>(width, height),
-              cell_updater_(nullptr),
-              cell_pass_cnt_(Grid<uint32_t>::createGrid(0, 0, resolution)),
-              cell_hit_cnt_(Grid<uint32_t>::createGrid(0, 0, resolution))
+        : Grid<uint8_t>(width, height),
+          cell_updater_(nullptr),
+          cell_pass_cnt_(Grid<uint32_t>::createGrid(0, 0, resolution)),
+          cell_hit_cnt_(Grid<uint32_t>::createGrid(0, 0, resolution))
         {
-                cell_updater_ = new CellUpdater(this);
+                cell_updater_ = std::make_unique<CellUpdater>(this);
                 if (math::DoubleEqual(resolution, 0.0)) {
                         throw std::invalid_argument("Resolution cannot be 0");
                 }
 
+                // set default value
                 min_pass_through_ = 2;
                 occupancy_threshold_ = 0.1;
-
+                std::cout << "about to getcoordinateconverter" << std::endl;
                 getCoordinateConverter()->setScale(1.0 / resolution);
                 getCoordinateConverter()->setOffset(offset);
         }
 
+public:
         /**
          * Create an occupancy grid from the given scans using the given resolution
          * @param scans
          * @param resolution
          */
         static OccupancyGrid *createFromScans(
-            const std::vector<LocalizedRangeScan *> &scans,
-            double resolution,
-            uint32_t min_pass_through,
-            double occupancy_threshold)
+                const std::vector<LocalizedRangeScan *> &scans,
+                double resolution,
+                uint32_t min_pass_through,
+                double occupancy_threshold)
         {
                 if (scans.empty()) {
                         return nullptr;
                 }
+                std::cout << "enter createfromscans1" << std::endl;
                 int32_t width, height;
                 Vector2<double> offset;
                 computeGridDimensions(scans, resolution, width, height, offset);
+                std::cout << "done computeGridDim" << std::endl;
                 OccupancyGrid *occupancy_grid = new OccupancyGrid(width, height, offset, resolution);
                 occupancy_grid->setMinPassThrough(min_pass_through);
                 occupancy_grid->setOccupancyThreshold(occupancy_threshold);
+                std::cout << "enter createfromscans2" << std::endl;
                 occupancy_grid->createFromScans(scans);
 
                 return occupancy_grid;
@@ -2307,11 +2703,11 @@ public:
 
         /**
          * Calculate grid dimensions from localized range scans
-         * @param rScans
+         * @param scans
          * @param resolution
-         * @param rWidth
-         * @param rHeight
-         * @param rOffset
+         * @param width
+         * @param height
+         * @param offset
          */
         static void computeGridDimensions(
             const std::vector<LocalizedRangeScan *> &scans,
@@ -2324,8 +2720,7 @@ public:
 
                 for (const auto &scan : scans)
                 {
-                        if (scan == nullptr)
-                        {
+                        if (scan == nullptr) {
                                 continue;
                         }
 
@@ -2349,7 +2744,7 @@ public:
          * @param do_update whether to update the cells' occupancy status immediately
          * @return returns false if an endpoint fell off the grid, otherwise true
          */
-        bool rayTrace(
+        bool traceRay(
             const Vector2<double> &world_from,
             const Vector2<double> &world_to,
             bool is_endpoint_valid,
@@ -2360,9 +2755,9 @@ public:
                 Vector2<int32_t> grid_from = cell_pass_cnt_->convertWorldToGrid(world_from);
                 Vector2<int32_t> grid_to = cell_pass_cnt_->convertWorldToGrid(world_to);
 
-                CellUpdater *cell_updater = do_update ? cell_updater_ : nullptr;
-                cell_pass_cnt_->traceLine(grid_from.GetX(), grid_from.GetY(), grid_to.GetX(),
-                                          grid_to.GetY(), cell_updater);
+                CellUpdater *cell_updater = do_update ? cell_updater_.get() : nullptr;
+                cell_pass_cnt_->traceLine(grid_from.getX(), grid_from.getY(), grid_to.getX(),
+                                          grid_to.getY(), cell_updater);
 
                 // for the end point
                 if (is_endpoint_valid)
@@ -2412,25 +2807,6 @@ public:
         }
 
         /**
-         * Sets the minimum number of beams that must pass through a cell before it
-         * will be considered to be occupied or unoccupied.
-         * This prevents stray beams from messing up the map.
-         */
-        void setMinPassThrough(uint32_t count)
-        {
-                occupancy_threshold_ = count;
-        }
-
-        /**
-         * Sets the minimum ratio of beams hitting cell to beams passing through
-         * cell for cell to be marked as occupied.
-         */
-        void setOccupancyThreshold(double thresh)
-        {
-                occupancy_threshold_ = thresh;
-        }
-
-        /**
          * Create grid using scans
          * @param scans
          */
@@ -2469,7 +2845,7 @@ public:
                 double max_range = laser->getMaximumRange();
                 double min_range = laser->getMinimumRange();
 
-                Vector2<double> scan_position = scan->getSensorPose().GetPosition();
+                Vector2<double> scan_position = scan->getSensorPose().getPosition();
                 // get scan point readings
                 const std::vector<Vector2<double>> &point_readings = scan->getPointReadings(false);
 
@@ -2494,13 +2870,13 @@ public:
                         {
                                 // clip range reading to be within trusted region
                                 double ratio = range_threshold / range_reading;
-                                double dx = point.GetX() - scan_position.GetX();
-                                double dy = point.GetY() - scan_position.GetY();
-                                point.SetX(scan_position.GetX() + ratio * dx);
-                                point.SetY(scan_position.GetY() + ratio * dy);
+                                double dx = point.getX() - scan_position.getX();
+                                double dy = point.getY() - scan_position.getY();
+                                point.setX(scan_position.getX() + ratio * dx);
+                                point.setY(scan_position.getY() + ratio * dy);
                         }
 
-                        bool is_in_map = rayTrace(scan_position, point, is_endpoint_valid, do_update);
+                        bool is_in_map = traceRay(scan_position, point, is_endpoint_valid, do_update);
 
                         if (!is_in_map)
                         {
@@ -2533,6 +2909,26 @@ public:
                 {
                         updateCell(data_ptr, *cell_pass_cnt_ptr, *cell_hit_cnt_ptr);
                 }
+        }
+
+public:
+        /**
+         * Sets the minimum number of beams that must pass through a cell before it
+         * will be considered to be occupied or unoccupied.
+         * This prevents stray beams from messing up the map.
+         */
+        void setMinPassThrough(uint32_t count)
+        {
+                occupancy_threshold_ = count;
+        }
+
+        /**
+         * Sets the minimum ratio of beams hitting cell to beams passing through
+         * cell for cell to be marked as occupied.
+         */
+        void setOccupancyThreshold(double thresh)
+        {
+                occupancy_threshold_ = thresh;
         }
 }; // OccupancyGrid
 

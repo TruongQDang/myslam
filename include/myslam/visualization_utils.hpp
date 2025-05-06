@@ -53,11 +53,11 @@ namespace vis_utils
 
                 if (map.info.width != (unsigned int)width ||
                     map.info.height != (unsigned int)height ||
-                    map.info.origin.position.x != offset.GetX() ||
-                    map.info.origin.position.y != offset.GetY())
+                    map.info.origin.position.x != offset.getX() ||
+                    map.info.origin.position.y != offset.getY())
                 {
-                        map.info.origin.position.x = offset.GetX();
-                        map.info.origin.position.y = offset.GetY();
+                        map.info.origin.position.x = offset.getX();
+                        map.info.origin.position.y = offset.getY();
                         map.info.width = width;
                         map.info.height = height;
                         map.data.resize(map.info.width * map.info.height);

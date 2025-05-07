@@ -2114,8 +2114,8 @@ private:
         int32_t width_;                             // width of grid
         int32_t height_;                            // height of grid
         int32_t width_step_;                        // 8 bit aligned width of grid
-        T *data_;                                   // grid data
-        CoordinateConverter *coordinate_converter_; // utility to convert between world coordinates and grid coordinates
+        std::unique_ptr<T[]> data_;                                   // grid data
+        std::unique_ptr<CoordinateConverter> coordinate_converter_; // utility to convert between world coordinates and grid coordinates
 
 protected:
         /**
@@ -2133,21 +2133,6 @@ protected:
 public:
         Grid()
         {
-        }
-
-        /**
-         * Destructor
-         */
-        virtual ~Grid()
-        {
-                if (data_)
-                {
-                        delete[] data_;
-                }
-                if (coordinate_converter_)
-                {
-                        delete coordinate_converter_;
-                }
         }
 
         /**
@@ -2172,7 +2157,7 @@ public:
          */
         void clear()
         {
-                memset(data_, 0, getDataSize() * sizeof(T));
+                memset(data_.get(), 0, getDataSize() * sizeof(T));
         }
 
         /**
@@ -2187,24 +2172,22 @@ public:
                 width_step_ = math::AlignValue<int32_t>(width, 8);
 
                 if (data_ != nullptr) {
-                        delete[] data_;
-                        data_ = nullptr;
+                        data_.reset();
                 }
 
                 try
                 {
-                        data_ = new T[getDataSize()];
+                        data_ = std::make_unique<T[]>(getDataSize());
 
                         if (coordinate_converter_ == nullptr)
                         {
-                                coordinate_converter_ = new CoordinateConverter();
+                                coordinate_converter_ = std::make_unique<CoordinateConverter>();
                         }
-                        std::cout << "within resize" << std::endl;
                         coordinate_converter_->setSize(Size2<int32_t>(width, height));
                 }
                 catch (...)
                 {
-                        data_ = nullptr;
+                        data_.reset();
                         width_ = 0;
                         height_ = 0;
                         width_step_ = 0;
@@ -2219,7 +2202,7 @@ public:
          */
         inline T *getDataPointer()
         {
-                return data_;
+                return data_.get();
         }
 
         /**
@@ -2230,7 +2213,7 @@ public:
         T *getDataPointer(const Vector2<int32_t> &grid)
         {
                 int32_t index = getGridIndex(grid, true);
-                return data_ + index;
+                return data_.get() + index;
         }
 
         /**
@@ -2400,7 +2383,7 @@ public:
          */
         inline CoordinateConverter *getCoordinateConverter() const
         {
-                return coordinate_converter_;
+                return coordinate_converter_.get();
         }
 }; // Grid
 

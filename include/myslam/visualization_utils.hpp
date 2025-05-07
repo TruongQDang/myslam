@@ -3,9 +3,14 @@
 
 #include <string>
 #include <memory>
+
 #include "rclcpp/rclcpp.hpp"
-#include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "visualization_msgs/msg/marker.hpp"
+#include "nav_msgs/msg/occupancy_grid.hpp"
+
+#include "karto_sdk/mapper.hpp"
+
+#include "myslam/myslam_types.hpp"
 
 namespace vis_utils
 {
@@ -35,6 +40,48 @@ namespace vis_utils
                 marker.lifetime = rclcpp::Duration::from_seconds(0);
 
                 return marker;
+        }
+
+        inline void toNavMap(
+            const karto::OccupancyGrid *occ_grid,
+            nav_msgs::msg::OccupancyGrid &map)
+        {
+                // Translate to ROS format
+                int32_t width = occ_grid->getWidth();
+                int32_t height = occ_grid->getHeight();
+                karto::Vector2<double> offset = occ_grid->getCoordinateConverter()->getOffset();
+
+                if (map.info.width != (unsigned int)width ||
+                    map.info.height != (unsigned int)height ||
+                    map.info.origin.position.x != offset.getX() ||
+                    map.info.origin.position.y != offset.getY())
+                {
+                        map.info.origin.position.x = offset.getX();
+                        map.info.origin.position.y = offset.getY();
+                        map.info.width = width;
+                        map.info.height = height;
+                        map.data.resize(map.info.width * map.info.height);
+                }
+
+                for (int32_t y = 0; y < height; y++)
+                {
+                        for (int32_t x = 0; x < width; x++)
+                        {
+                                uint8_t value = occ_grid->getValue(karto::Vector2<int32_t>(x, y));
+                                switch (value)
+                                {
+                                case karto::GRIDSTATES_UNKNOWN:
+                                        map.data[MAP_IDX(map.info.width, x, y)] = -1;
+                                        break;
+                                case karto::GRIDSTATES_OCCUPIED:
+                                        map.data[MAP_IDX(map.info.width, x, y)] = 100;
+                                        break;
+                                case karto::GRIDSTATES_FREE:
+                                        map.data[MAP_IDX(map.info.width, x, y)] = 0;
+                                        break;
+                                }
+                        }
+                }
         }
 } // namespace vis_utils
 

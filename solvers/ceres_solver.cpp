@@ -1,14 +1,14 @@
-#include "myslam/ceres_solver.hpp"
+#include "ceres_solver.hpp"
 
 namespace solver_plugins
 {
 
 /*****************************************************************************/
 CeresSolver::CeresSolver()
-: nodes_(new std::unordered_map<int, Eigen::Vector3d>()),
-  blocks_(new std::unordered_map<std::size_t,
-    ceres::ResidualBlockId>()),
-  problem_(NULL), was_constant_set_(false)
+: problem_(NULL),
+  was_constant_set_(false),
+  nodes_(new std::unordered_map<int, Eigen::Vector3d>()),
+  blocks_(new std::unordered_map<std::size_t, ceres::ResidualBlockId>())
 /*****************************************************************************/
 {
 }
@@ -70,8 +70,13 @@ void CeresSolver::configure(rclcpp_lifecycle::LifecycleNode::SharedPtr node)
         }
         mode = node->get_parameter("mode").as_string();
 
-        // debug_logging_ = node->get_parameter("debug_logging").as_bool();
-        debug_logging_ = true;
+        if (!node->has_parameter("debug_logging"))
+        {
+                node->declare_parameter(
+                    "debug_logging",
+                    rclcpp::ParameterValue(true));
+        }
+        debug_logging_ = node->get_parameter("debug_logging").as_bool();
 
         corrections_.clear();
         first_node_ = nodes_->end();
@@ -259,9 +264,9 @@ void CeresSolver::compute()
                 corrections_.clear();
         }
         corrections_.reserve(nodes_->size());
-        Pose2 pose;
-        ConstGraphIterator iter = nodes_->begin();
-        for (iter; iter != nodes_->end(); ++iter) {
+        karto::Pose2 pose;
+        for (ConstGraphIterator iter = nodes_->begin(); iter != nodes_->end(); ++iter)
+        {
                 pose.setX(iter->second(0));
                 pose.setY(iter->second(1));
                 pose.setHeading(iter->second(2));
@@ -270,18 +275,18 @@ void CeresSolver::compute()
 }
 
 /*****************************************************************************/
-void CeresSolver::addNode(mapper_utils::Vertex<mapper_utils::LocalizedRangeScan> *pVertex)
+void CeresSolver::addNode(karto::Vertex<karto::LocalizedRangeScan> *vertex)
 /*****************************************************************************/
 {
         // store nodes
-        if (!pVertex) {
+        if (!vertex) {
                 return;
         }
 
-        Pose2 pose = pVertex->getObject()->getCorrectedPose();
+        karto::Pose2 pose = vertex->getObject()->getCorrectedPose();
         Eigen::Vector3d pose2d(pose.getX(), pose.getY(), pose.getHeading());
 
-        const int id = pVertex->getObject()->getScanId();
+        const int id = vertex->getObject()->getScanId();
 
         boost::mutex::scoped_lock lock(nodes_mutex_);
         nodes_->insert(std::pair<int, Eigen::Vector3d>(id, pose2d));
@@ -292,19 +297,19 @@ void CeresSolver::addNode(mapper_utils::Vertex<mapper_utils::LocalizedRangeScan>
 }
 
 /*****************************************************************************/
-void CeresSolver::addConstraint(mapper_utils::Edge<mapper_utils::LocalizedRangeScan> *pEdge)
+void CeresSolver::addConstraint(karto::Edge<karto::LocalizedRangeScan> *edge)
 /*****************************************************************************/
 {
         // get IDs in graph for this edge
         boost::mutex::scoped_lock lock(nodes_mutex_);
 
-        if (!pEdge) {
+        if (!edge) {
                 return;
         }
 
-        const int node1 = pEdge->getSource()->getObject()->getScanId();
+        const int node1 = edge->getSource()->getObject()->getScanId();
         GraphIterator node1it = nodes_->find(node1);
-        const int node2 = pEdge->getTarget()->getObject()->getScanId();
+        const int node2 = edge->getTarget()->getObject()->getScanId();
         GraphIterator node2it = nodes_->find(node2);
 
         if (node1it == nodes_->end() ||
@@ -317,18 +322,18 @@ void CeresSolver::addConstraint(mapper_utils::Edge<mapper_utils::LocalizedRangeS
         }
 
         // extract transformation
-        mapper_utils::LinkInfo *pLinkInfo = (mapper_utils::LinkInfo *)(pEdge->getLabel());
-        Pose2 diff = pLinkInfo->getPoseDifference();
+        karto::LinkInfo *link_info = (karto::LinkInfo *)(edge->getLabel());
+        karto::Pose2 diff = link_info->getPoseDifference();
         Eigen::Vector3d pose2d(diff.getX(), diff.getY(), diff.getHeading());
 
-        Matrix3d precisionMatrix = pLinkInfo->getCovariance().inverse();
+        karto::Matrix3 precision_matrix = link_info->getCovariance().inverse();
         Eigen::Matrix3d information;
-        information(0, 0) = precisionMatrix(0, 0);
-        information(0, 1) = information(1, 0) = precisionMatrix(0, 1);
-        information(0, 2) = information(2, 0) = precisionMatrix(0, 2);
-        information(1, 1) = precisionMatrix(1, 1);
-        information(1, 2) = information(2, 1) = precisionMatrix(1, 2);
-        information(2, 2) = precisionMatrix(2, 2);
+        information(0, 0) = precision_matrix(0, 0);
+        information(0, 1) = information(1, 0) = precision_matrix(0, 1);
+        information(0, 2) = information(2, 0) = precision_matrix(0, 2);
+        information(1, 1) = precision_matrix(1, 1);
+        information(1, 2) = information(2, 1) = precision_matrix(1, 2);
+        information(2, 2) = precision_matrix(2, 2);
         Eigen::Matrix3d sqrt_information = information.llt().matrixU();
 
         // populate residual and parameterization for heading normalization
@@ -344,11 +349,11 @@ void CeresSolver::addConstraint(mapper_utils::Edge<mapper_utils::LocalizedRangeS
                               angle_manifold_);
 
         blocks_->insert(std::pair<std::size_t, ceres::ResidualBlockId>(
-            GetHash(node1, node2), block));
+                GetHash(node1, node2), block));
 }
 
 /*****************************************************************************/
-const mapper_utils::ScanSolver::IdPoseVector &CeresSolver::getCorrections() const
+const karto::ScanSolver::IdPoseVector &CeresSolver::getCorrections() const
 /*****************************************************************************/
 {
         return corrections_;

@@ -1,9 +1,12 @@
 cmake_minimum_required(VERSION 3.8)
 project(myslam)
 
-if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic)
+set(CMAKE_BUILD_TYPE Release) #None, Debug, Release, RelWithDebInfo, MinSizeRel
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 17)
 endif()
+add_compile_options(-Wall -Wextra -Wpedantic)
+cmake_policy(SET CMP0077 NEW)
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -22,9 +25,14 @@ find_package(visualization_msgs REQUIRED)
 
 find_package(Eigen3 REQUIRED)
 find_package(Boost REQUIRED thread)
-find_package(TBB REQUIRED NO_CMAKE_PACKAGE_REGISTRY)
 find_package(glog REQUIRED)
 find_package(Ceres REQUIRED COMPONENTS SuiteSparse)
+
+#karto_sdk lib
+set(BUILD_SHARED_LIBS ON)
+add_subdirectory(lib/karto_sdk)
+
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 set(ros_dependencies
   rclcpp
@@ -41,34 +49,34 @@ set(ros_dependencies
   visualization_msgs
 )
 
-# build all libraries as shared libraries
-set(BUILD_SHARED_LIBS ON)
-
 set(libraries
     ceres_solver_plugin
-    mapper_utils
     myslam)
 
-include_directories(include ${EIGEN3_INCLUDE_DIRS}
+include_directories(include lib/karto_sdk/include
+                            ${EIGEN3_INCLUDE_DIRS}
                             ${Boost_INCLUDE_DIRS}
                             ${TBB_INCLUDE_DIRS}
                             ${CERES_INCLUDES})
 
 #### Ceres Plugin
-add_library(ceres_solver_plugin src/ceres_solver.cpp)
+add_library(ceres_solver_plugin solvers/ceres_solver.cpp)
 ament_target_dependencies(ceres_solver_plugin ${ros_dependencies})
 target_link_libraries(ceres_solver_plugin ${CERES_LIBRARIES}
                                           ${Boost_LIBRARIES})
 
-add_library(mapper_utils src/mapper_utils.cpp)
-ament_target_dependencies(mapper_utils ${ros_dependencies})
-target_link_libraries(mapper_utils ${Boost_LIBRARIES} TBB::tbb)
-
+#### Mapping executibles
 add_library(myslam src/myslam.cpp src/loop_closure_assistant.cpp)
-target_link_libraries(myslam mapper_utils ceres_solver_plugin)
+ament_target_dependencies(myslam
+                          ${ros_dependencies})
+target_link_libraries(myslam karto_myslam 
+                             ceres_solver_plugin 
+                             ${Boost_LIBRARIES})
 add_executable(myslam_node src/myslam_node.cpp)
 target_link_libraries(myslam_node myslam)
 
+
+#### Install
 install(TARGETS myslam_node
                 ${libraries}
         LIBRARY DESTINATION lib

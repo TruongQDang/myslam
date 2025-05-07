@@ -1,23 +1,24 @@
 #ifndef CERES_SOLVER_HPP_
 #define CERES_SOLVER_HPP_
 
-#include "myslam/myslam_types.hpp"
-#include "myslam/mapper_utils.hpp"
-#include "myslam/ceres_utils.hpp"
+#include "karto_sdk/mapper.hpp"
+#include "ceres_utils.hpp"
 
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
+
+#include "myslam/myslam_types.hpp"
 
 namespace solver_plugins
 {
 
 using namespace ::myslam_types;
 
-class CeresSolver : public mapper_utils::ScanSolver
+class CeresSolver : public karto::ScanSolver
 {
 private:
         // karto
-        mapper_utils::ScanSolver::IdPoseVector corrections_;
+        karto::ScanSolver::IdPoseVector corrections_;
 
         // ceres
         ceres::Solver::Options options_;
@@ -43,14 +44,14 @@ public:
         virtual void configure(rclcpp_lifecycle::LifecycleNode::SharedPtr node);
 
         // Adds a node to the solver
-        virtual void addNode(mapper_utils::Vertex<mapper_utils::LocalizedRangeScan> *pVertex);
+        virtual void addNode(karto::Vertex<karto::LocalizedRangeScan> *vertex);
         // Adds a constraint to the solver
-        virtual void addConstraint(mapper_utils::Edge<mapper_utils::LocalizedRangeScan> *pEdge);
+        virtual void addConstraint(karto::Edge<karto::LocalizedRangeScan> *edge);
 
         std::unordered_map<int, Eigen::Vector3d> *getGraph();
 
         // Get corrected poses after optimization
-        virtual const mapper_utils::ScanSolver::IdPoseVector &getCorrections() const;
+        virtual const karto::ScanSolver::IdPoseVector &getCorrections() const;
 }; // CeresSolver
 
 } // namespace solver_plugins

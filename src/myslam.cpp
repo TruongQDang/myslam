@@ -804,7 +804,7 @@ bool MySlam::shouldProcessScan(
         // check if moved enough between scans, within 10% for correction error
         const double dist2 = last_pose.computeSquaredDistance(pose);
         double heading_diff = karto::math::NormalizeAngle(pose.getHeading() - last_pose.getHeading());
-        if (dist2 < 0.8 * min_dist2 && fabs(heading_diff) < 0.9 * min_heading || scan_count < 5) {
+        if ((dist2 < 0.8 * min_dist2 && fabs(heading_diff) < 0.9 * min_heading) || scan_count < 5) {
                 return false;
         }
 

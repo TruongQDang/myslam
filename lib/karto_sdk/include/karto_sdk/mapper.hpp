@@ -1224,7 +1224,6 @@ protected:
          * new scan if it also does not meet the minimum travel distance requirement.
          * For performance reasons, generally it is a good idea to only process scans if the robot
          * has moved a reasonable amount.
-         * Default value is 10 degrees.
          */
         double minimum_travel_heading_;
 

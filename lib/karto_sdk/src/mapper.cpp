@@ -1332,6 +1332,7 @@ bool Mapper::hasMovedEnough(LocalizedRangeScan *scan, LocalizedRangeScan *last_s
 }
 
 // Setters and Getters for parameters
+
 void Mapper::setParamUseScanMatching(bool b)
 {
         use_scan_matching_ = b;
@@ -1347,6 +1348,9 @@ void Mapper::setParamMinimumTravelDistance(double d)
         minimum_travel_distance_ = d;
 }
 
+/**
+ * @param d in radians
+ */
 void Mapper::setParamMinimumTravelHeading(double d)
 {
         minimum_travel_heading_ = d;
@@ -1498,11 +1502,11 @@ double Mapper::getParamMinimumTravelDistance()
 }
 
 /**
- * @return Minimum travel heading in degrees
+ * @return Minimum travel heading in radian
  */
 double Mapper::getParamMinimumTravelHeading()
 {
-        return (static_cast<double>(minimum_travel_heading_));
+        return static_cast<double>(minimum_travel_heading_);
 }
 
 int Mapper::getParamScanBufferSize()

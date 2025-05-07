@@ -660,21 +660,21 @@ public:
                 k_inverse.matrix_[2][1] = matrix_[0][1] * matrix_[2][0] - matrix_[0][0] * matrix_[2][1];
                 k_inverse.matrix_[2][2] = matrix_[0][0] * matrix_[1][1] - matrix_[0][1] * matrix_[1][0];
 
-                double fDet = matrix_[0][0] * k_inverse.matrix_[0][0] +
+                double f_det = matrix_[0][0] * k_inverse.matrix_[0][0] +
                               matrix_[0][1] * k_inverse.matrix_[1][0] +
                               matrix_[0][2] * k_inverse.matrix_[2][0];
 
-                if (fabs(fDet) <= tolerance)
+                if (fabs(f_det) <= tolerance)
                 {
                         return false;
                 }
 
-                double fInvDet = 1.0 / fDet;
+                double f_inv_det = 1.0 / f_det;
                 for (size_t row = 0; row < 3; row++)
                 {
                         for (size_t col = 0; col < 3; col++)
                         {
-                                k_inverse.matrix_[row][col] *= fInvDet;
+                                k_inverse.matrix_[row][col] *= f_inv_det;
                         }
                 }
 
@@ -815,7 +815,7 @@ public:
          * Constructs a transformation from the origin to the given pose
          * @param pose pose
          */
-        Transform(const Pose2 &pose) // NOLINT
+        Transform(const Pose2 &pose)
         {
                 setTransform(Pose2(), pose);
         }
@@ -1360,8 +1360,9 @@ private:
         double angular_resolution_;
         uint32_t number_of_range_readings_;
 
+        // pose_robot_laser
         Pose2 offset_pose_;
-
+        // name of laser frame
         std::string frame_id_;  
 
 public:
@@ -1790,16 +1791,13 @@ private:
                         double range_threshold = laser_->getRangeThreshold();
                         double minimum_angle = laser_->getMinimumAngle();
                         double angular_resolution = laser_->getAngularResolution();
-                        std::cout << "within update func" << std::endl;
                         Pose2 scan_pose = getSensorPose();
                         // compute point readings
                         Vector2<double> range_points_sum(0, 0);
                         uint32_t beam_num = 0;
 
                         for (uint32_t i = 0; i < laser_->getNumberOfRangeReadings(); i++, beam_num++) {
-                                std::cout << "before get range reading" << std::endl;
                                 double range_reading = getRangeReadings()[i];
-                                std::cout << "after get range reading" << std::endl;
                                 double angle = scan_pose.getHeading() + minimum_angle + beam_num * angular_resolution;
                                 Vector2<double> point;
                                 point.setX(scan_pose.getX() + (range_reading * cos(angle)));
@@ -1831,7 +1829,6 @@ private:
                         for (const auto &point_reading : point_readings_) {
                                 bounding_box_.add(point_reading);
                         }
-                        std::cout << "done update func" << std::endl;
                 }
 
                 is_dirty_ = false;

@@ -40,6 +40,7 @@ void MySlam::laserCallback(sensor_msgs::msg::LaserScan::ConstSharedPtr scan)
         // get transform from odom to base
         scan_header_ = scan->header;
         karto::Pose2 odom_pose;
+        RCLCPP_DEBUG(get_logger(), "test debug logger");
         if (!pose_helper_->getPose(odom_pose, scan->header.stamp, odom_frame_, base_frame_)) {
                 RCLCPP_WARN(get_logger(), "Failed to compute odom pose");
                 return;
@@ -162,9 +163,9 @@ CallbackReturn MySlam::on_cleanup(const rclcpp_lifecycle::State &)
         RCLCPP_INFO(get_logger(), "Cleaning up...");
 
         closure_assistant_.reset();
-        tf_broadcaster_.reset();
         mapper_.reset();
         pose_helper_.reset();
+        laser_.reset();
 
         tf_broadcaster_.reset();
         tf_listener_.reset();
@@ -197,6 +198,7 @@ MySlam::~MySlam()
         mapper_.reset();
         pose_helper_.reset();
         closure_assistant_.reset();
+        laser_.reset();
 
         scan_filter_.reset();
         scan_filter_subscriber_.reset();
@@ -241,6 +243,7 @@ void MySlam::setParams()
                 this->declare_parameter("resolution", resolution_);
         }
         resolution_ = this->get_parameter("resolution").as_double();
+        
         if (resolution_ <= 0.0)
         {
                 RCLCPP_WARN(this->get_logger(),
@@ -269,6 +272,7 @@ void MySlam::setParams()
                 this->declare_parameter("scan_queue_size", scan_queue_size_);
         }
         scan_queue_size_ = this->get_parameter("scan_queue_size").as_int();
+
 
         throttle_scans_ = 1;
         if (!this->has_parameter("throttle_scans"))
@@ -312,6 +316,17 @@ void MySlam::setParams()
         }
         tmp_val = this->get_parameter("minimum_time_interval").as_double();
         minimum_time_interval_ = rclcpp::Duration::from_seconds(tmp_val);
+
+        bool debug = false;
+        if (!this->has_parameter("debug_logging"))
+        {
+                this->declare_parameter("debug_logging", debug);
+        }
+        debug = this->get_parameter("debug_logging").as_bool();
+        if (debug)
+        {
+                rcutils_ret_t rtn = rcutils_logging_set_logger_level(this->get_logger().get_name(), RCUTILS_LOG_SEVERITY_DEBUG);
+        }
 }
 
 /*****************************************************************************/
@@ -367,6 +382,7 @@ void MySlam::configureMapper()
         }
         this->get_parameter("use_scan_matching", use_scan_matching);
         mapper_->setParamUseScanMatching(use_scan_matching);
+        std::cout << "use_scan_matching " << mapper_->getParamUseScanMatching() << std::endl;
 
         bool use_scan_barycenter = true;
         if (!this->has_parameter("use_scan_barycenter"))

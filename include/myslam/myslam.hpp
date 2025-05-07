@@ -80,7 +80,7 @@ protected:
         std::unique_ptr<tf2_ros::TransformListener> tf_listener_;
         std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
         std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<
-        geometry_msgs::msg::PoseWithCovarianceStamped>> pose_publisher_;
+                geometry_msgs::msg::PoseWithCovarianceStamped>> pose_publisher_;
         std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<nav_msgs::msg::OccupancyGrid>> map_publisher_;
         std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<nav_msgs::msg::MapMetaData>> map_metadata_publisher_;
         std::unique_ptr<message_filters::Subscriber<sensor_msgs::msg::LaserScan, rclcpp_lifecycle::LifecycleNode>> scan_filter_subscriber_;

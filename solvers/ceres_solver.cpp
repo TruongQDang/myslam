@@ -70,8 +70,13 @@ void CeresSolver::configure(rclcpp_lifecycle::LifecycleNode::SharedPtr node)
         }
         mode = node->get_parameter("mode").as_string();
 
-        // debug_logging_ = node->get_parameter("debug_logging").as_bool();
-        debug_logging_ = true;
+        if (!node->has_parameter("debug_logging"))
+        {
+                node->declare_parameter(
+                    "debug_logging",
+                    rclcpp::ParameterValue(true));
+        }
+        debug_logging_ = node->get_parameter("debug_logging").as_bool();
 
         corrections_.clear();
         first_node_ = nodes_->end();

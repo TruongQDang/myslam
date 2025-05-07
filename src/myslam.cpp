@@ -40,7 +40,6 @@ void MySlam::laserCallback(sensor_msgs::msg::LaserScan::ConstSharedPtr scan)
         // get transform from odom to base
         scan_header_ = scan->header;
         karto::Pose2 odom_pose;
-        RCLCPP_DEBUG(get_logger(), "test debug logger");
         if (!pose_helper_->getPose(odom_pose, scan->header.stamp, odom_frame_, base_frame_)) {
                 RCLCPP_WARN(get_logger(), "Failed to compute odom pose");
                 return;

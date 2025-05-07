@@ -1502,7 +1502,7 @@ double Mapper::getParamMinimumTravelDistance()
  */
 double Mapper::getParamMinimumTravelHeading()
 {
-        return math::RadiansToDegrees(static_cast<double>(minimum_travel_heading_));
+        return (static_cast<double>(minimum_travel_heading_));
 }
 
 int Mapper::getParamScanBufferSize()

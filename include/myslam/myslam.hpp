@@ -63,8 +63,7 @@ protected:
                 karto::Pose2 &odom_pose);
         tf2::Stamped<tf2::Transform> setTransformFromPoses(
                 const karto::Pose2 &corrected_pose,
-                const karto::Pose2 &odom_pose, const rclcpp::Time &t,
-                const bool &update_reprocessing_transform);
+                const rclcpp::Time &t);
         void publishPose(
                 const karto::Pose2 &pose,
                 const karto::Matrix3 &cov,

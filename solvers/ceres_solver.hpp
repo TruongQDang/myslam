@@ -44,9 +44,9 @@ public:
         virtual void configure(rclcpp_lifecycle::LifecycleNode::SharedPtr node);
 
         // Adds a node to the solver
-        virtual void addNode(karto::Vertex<karto::LocalizedRangeScan> *pVertex);
+        virtual void addNode(karto::Vertex<karto::LocalizedRangeScan> *vertex);
         // Adds a constraint to the solver
-        virtual void addConstraint(karto::Edge<karto::LocalizedRangeScan> *pEdge);
+        virtual void addConstraint(karto::Edge<karto::LocalizedRangeScan> *edge);
 
         std::unordered_map<int, Eigen::Vector3d> *getGraph();
 

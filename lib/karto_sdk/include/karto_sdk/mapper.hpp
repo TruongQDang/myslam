@@ -21,9 +21,9 @@ namespace karto
 typedef std::vector<LocalizedRangeScan *> LocalizedRangeScanVector;
 typedef std::map<int, LocalizedRangeScan *> LocalizedRangeScanMap;
 
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
 
 template <typename T>
 class Vertex;
@@ -86,9 +86,9 @@ public:
 
 }; // Edge
 
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
 
 template <typename T>
 class Vertex
@@ -163,9 +163,9 @@ private:
 
 }; // Vertex
 
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
 
 class ScanManager
 {
@@ -179,25 +179,37 @@ private:
         double running_buffer_maximum_distance_;
 
 public:
-        ScanManager() 
-        : last_scan_(nullptr),
-        next_scan_id_(0)
-        {
-        }
-
         ScanManager(uint32_t running_buffer_maximum_size, double running_buffer_maximum_distance)
-            : last_scan_(nullptr),
-              next_scan_id_(0),
-              running_buffer_maximum_size_(running_buffer_maximum_size),
-              running_buffer_maximum_distance_(running_buffer_maximum_distance)
+        : last_scan_(nullptr),
+        next_scan_id_(0),
+        running_buffer_maximum_size_(running_buffer_maximum_size),
+        running_buffer_maximum_distance_(running_buffer_maximum_distance)
         {
         }
 
         /**
-         * Gets all scans of all devices
-         * @return all scans of all devices
+         * Destructor
          */
-        std::vector<LocalizedRangeScan *> getAllScans()
+        virtual ~ScanManager()
+        {
+                clear();
+        }
+
+public:
+        /**
+         * Deletes data of this buffered device
+         */
+        void clear()
+        {
+                scans_.clear();
+                running_scans_.clear();
+        }
+
+        /**
+         * Gets all scans
+         * @return all scans as a std::vector
+         */
+        LocalizedRangeScanVector getAllScans()
         {
                 std::vector<LocalizedRangeScan *> scans;
                 scans.reserve(scans_.size());
@@ -207,6 +219,15 @@ public:
                 }
 
                 return scans;
+        }
+
+        /**
+         * Gets all scans
+         * @return all scans as a std::map<id,scan>
+         */
+        LocalizedRangeScanMap getAllScansWithId() 
+        {
+                return scans_;
         }
 
 
@@ -287,9 +308,9 @@ public:
 
 }; // ScanManager
 
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
 
 // A LinkInfo object contains the requisite information for the "spring"
 // that links two scans together--the pose difference and the uncertainty
@@ -317,7 +338,7 @@ public:
          * Changes the link information to be the given parameters
          * @param pose1
          * @param pose2
-         * @param rCovariance
+         * @param covariance
          */
         void update(const Pose2 &pose1, const Pose2 &pose2, const Matrix3 &covariance)
         {
@@ -354,9 +375,9 @@ public:
         }
 }; // LinkInfo
 
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
 
 template<typename T>
 class Graph
@@ -410,9 +431,9 @@ public:
 
 }; // Graph
 
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
 
 class CorrelationGrid : public Grid<uint8_t>
 {
@@ -446,16 +467,16 @@ public:
          * @param smearDeviation
          */
         CorrelationGrid(
-            uint32_t width, uint32_t height, uint32_t borderSize,
-            double resolution, double smearDeviation)
-            : Grid<uint8_t>(width + borderSize * 2, height + borderSize * 2),
-              smear_deviation_(smearDeviation),
+            uint32_t width, uint32_t height, uint32_t border_size,
+            double resolution, double smear_deviation)
+            : Grid<uint8_t>(width + border_size * 2, height + border_size * 2),
+              smear_deviation_(smear_deviation),
               kernel_(nullptr)
         {
                 getCoordinateConverter()->setScale(1.0 / resolution);
 
                 // setup region of interest
-                roi_ = Rectangle2<int32_t>(borderSize, borderSize, width, height);
+                roi_ = Rectangle2<int32_t>(border_size, border_size, width, height);
 
                 // calculate kernel
                 calculateKernel();
@@ -485,8 +506,8 @@ public:
 
         /**
          * Gets the index into the data pointer of the given grid coordinate
-         * @param rGrid
-         * @param boundaryCheck
+         * @param grid
+         * @param boundary_check
          * @return grid index
          */
         virtual int32_t getGridIndex(const Vector2<int32_t> &grid, bool boundary_check = true) const
@@ -499,7 +520,7 @@ public:
 
         /**
          * Smear cell if the cell at the given point is marked as "occupied"
-         * @param rGridPoint
+         * @param grid_point
          */
         inline void smearPoint(const Vector2<int32_t> &grid_point)
         {
@@ -535,11 +556,10 @@ public:
         }
 
 protected:
-
         /**
          * Computes the kernel half-size based on the smear distance and the grid resolution.
          * Computes to two standard deviations to get 95% region and to reduce aliasing.
-         * @param smearDeviation
+         * @param smear_deviation
          * @param resolution
          * @return kernel half-size based on the parameters
          */
@@ -608,9 +628,9 @@ protected:
 
 }; // CorrelationGrid
 
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
 
 class Mapper;
 
@@ -782,9 +802,9 @@ public:
             Matrix3 &covariance);
 }; // ScanMatcher
 
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
 
 template <typename T>
 class Visitor;
@@ -816,9 +836,9 @@ public:
 
 }; // GraphTraversal<T>
 
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
 
 template<typename T>
 class BreadthFirstTraversal : public GraphTraversal<T>
@@ -895,9 +915,9 @@ public:
 
 }; // BreadthFirstTraversal<T>
 
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
 
 /**
  * Visitor class
@@ -914,9 +934,9 @@ public:
         virtual bool visit(Vertex<T> *vertex) = 0;
 }; // Visitor<T>
 
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
 
 class NearScanVisitor : public Visitor<LocalizedRangeScan>
 {
@@ -947,9 +967,9 @@ public:
         }
 }; // NearScanVisitor
 
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
 
 class MapperGraph : public Graph<LocalizedRangeScan>
 {
@@ -1118,9 +1138,9 @@ private:
 
 }; // MapperGraph
 
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
 
 class ScanSolver
 {
@@ -1177,9 +1197,9 @@ public:
 
 }; // ScanSolver
 
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
 
 class Mapper 
 {
@@ -1370,13 +1390,10 @@ protected:
         // Minimum ratio of beams hitting cell to beams passing through cell to be marked as occupied
         double occupancy_threshold_;
 
-protected:
-        bool hasMovedEnough(LocalizedRangeScan *scan, LocalizedRangeScan *last_scan) const;
-
 public:
         Mapper()
-        : scan_manager_(nullptr),
-        initialized_(false)
+        : initialized_(false),
+        scan_manager_(nullptr)
         {
         }
 
@@ -1429,7 +1446,6 @@ public:
                 if (!scan_manager_) {
                         return nullptr;
                 }
-                std::cout << " enter getOccGrid" << std::endl;
                 return OccupancyGrid::createFromScans(
                         scan_manager_->getAllScans(),
                         resolution,
@@ -1549,20 +1565,6 @@ private:
         const Mapper &operator=(const Mapper &);
 
 }; // Mapper
-
-//////////////////////////////////////////////////////////
-
-
-
-///////////////////////////////////////////////////////////
-
-
-
-///////////////////////////////////////////////////////
-
-
-/////////////////////////////////////////////////
-
 
 
 } // namespace mapper_utils

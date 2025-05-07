@@ -37,12 +37,10 @@ MySlam::MySlam(rclcpp::NodeOptions options)
 void MySlam::laserCallback(sensor_msgs::msg::LaserScan::ConstSharedPtr scan)
 /*****************************************************************************/
 {
-        RCLCPP_INFO(get_logger(), "enterLaserCallback");
         // get transform from odom to base
         scan_header_ = scan->header;
         karto::Pose2 odom_pose;
         if (!pose_helper_->getPose(odom_pose, scan->header.stamp, odom_frame_, base_frame_)) {
-                RCLCPP_INFO(get_logger(), "Failed to compute odom pose");
                 RCLCPP_WARN(get_logger(), "Failed to compute odom pose");
                 return;
         }
@@ -51,8 +49,6 @@ void MySlam::laserCallback(sensor_msgs::msg::LaserScan::ConstSharedPtr scan)
         if (laser_ == nullptr) {
                 makeLaser(scan);
         }
-
-        RCLCPP_INFO(get_logger(), "about to enter should processscan");
 
         if (shouldProcessScan(scan, odom_pose)) {
                 addScan(scan, odom_pose);
@@ -93,8 +89,6 @@ CallbackReturn MySlam::on_configure(const rclcpp_lifecycle::State &)
             std::make_unique<loop_closure_assistant::LoopClosureAssistant>(
                 shared_from_this(), mapper_.get(), mapper_->getScanManager());
 
-        RCLCPP_INFO(get_logger(), "Configured");
-
         return CallbackReturn::SUCCESS;
 }
 
@@ -130,8 +124,6 @@ CallbackReturn MySlam::on_activate(const rclcpp_lifecycle::State &)
                         this->publishVisualizations();
                 })
         );
-
-        RCLCPP_INFO(get_logger(), "Activated");
 
         return CallbackReturn::SUCCESS;
 }
@@ -758,10 +750,8 @@ bool MySlam::updateMap()
 
         // publish map as current
         map_.map.header.stamp = scan_header_.stamp;
-        map_publisher_->publish(
-            std::move(std::make_unique<nav_msgs::msg::OccupancyGrid>(map_.map)));
-        map_metadata_publisher_->publish(
-            std::move(std::make_unique<nav_msgs::msg::MapMetaData>(map_.map.info)));
+        map_publisher_->publish(std::make_unique<nav_msgs::msg::OccupancyGrid>(map_.map));
+        map_metadata_publisher_->publish(std::make_unique<nav_msgs::msg::MapMetaData>(map_.map.info));
 
         delete occ_grid;
         occ_grid = nullptr;
@@ -820,7 +810,6 @@ karto::LocalizedRangeScan *MySlam::addScan(
         karto::Pose2 &odom_pose)
 /*****************************************************************************/
 {
-        RCLCPP_INFO(get_logger(), "enter addScan");
         karto::LocalizedRangeScan *range_scan = getLocalizedRangeScan(laser_.get(), scan, odom_pose);
 
         // Add the localized range scan to the mapper
@@ -836,9 +825,7 @@ karto::LocalizedRangeScan *MySlam::addScan(
         if (processed) {
                 setTransformFromPoses(
                         range_scan->getCorrectedPose(), 
-                        odom_pose,
-                        scan->header.stamp, 
-                        false);
+                        scan->header.stamp);
 
                 publishPose(
                         range_scan->getCorrectedPose(), 
@@ -855,8 +842,7 @@ karto::LocalizedRangeScan *MySlam::addScan(
 /*****************************************************************************/
 tf2::Stamped<tf2::Transform> MySlam::setTransformFromPoses(
         const karto::Pose2 &corrected_pose,
-        const karto::Pose2 &odom_pose, const rclcpp::Time &t,
-        const bool &update_reprocessing_transform)
+        const rclcpp::Time &t)
 /*****************************************************************************/
 {
         // Compute the map->odom transform

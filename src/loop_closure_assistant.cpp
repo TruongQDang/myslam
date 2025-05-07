@@ -9,7 +9,7 @@ LoopClosureAssistant::LoopClosureAssistant(
         NodeT node,
         karto::Mapper * mapper,
         karto::ScanManager* scan_holder)
-: mapper_(mapper), scan_holder_(scan_holder),
+: scan_holder_(scan_holder), mapper_(mapper), 
   clock_(node->get_clock()), logger_(node->get_logger()),
   parameters_interface_(node->get_node_parameters_interface())
 /*****************************************************************************/
@@ -79,13 +79,11 @@ void LoopClosureAssistant::publishGraph()
         edges_marker.points.reserve(edges.size() * 2);
 
         for (const auto &edge : edges) {
-                int source_id = edge->getSource()->getObject()->getScanId();
                 const auto &pose0 = edge->getSource()->getObject()->getCorrectedPose();
                 geometry_msgs::msg::Point p0;
                 p0.x = pose0.getX();
                 p0.y = pose0.getY();
 
-                int target_id = edge->getTarget()->getObject()->getScanId();
                 const auto &pose1 = edge->getTarget()->getObject()->getCorrectedPose();
                 geometry_msgs::msg::Point p1;
                 p1.x = pose1.getX();

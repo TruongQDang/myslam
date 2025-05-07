@@ -609,9 +609,12 @@ karto::LocalizedRangeScan *MySlam::getLocalizedRangeScan(
         karto::Pose2 &odom_pose)
 /*****************************************************************************/
 {
-        // convert vector<float> to vector<double>
-        karto::RangeReadingsVector readings(scan->ranges.size());
-        std::copy(scan->ranges.begin(), scan->ranges.end(), readings.begin());
+        // convert vector<float> to vector<double> for karto
+        karto::RangeReadingsVector readings;
+        readings.reserve(scan->ranges.size());
+        for (const auto& range_reading : scan->ranges) {
+                readings.push_back(static_cast<double>(range_reading));
+        }
 
         karto::LocalizedRangeScan *range_scan = new karto::LocalizedRangeScan(laser, readings);
         range_scan->setOdometricPose(odom_pose);

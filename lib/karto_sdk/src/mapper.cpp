@@ -990,7 +990,7 @@ void MapperGraph::linkScans(
 
         // only attach link information if the edge is new
         if (is_new_edge == true) {
-                edge->setLabel(new LinkInfo(from_scan->getCorrectedPose(), to_scan->getCorrectedAt(mean), covariance));
+                edge->setLabel(std::make_unique<LinkInfo>(from_scan->getCorrectedPose(), to_scan->getCorrectedAt(mean), covariance));
                 if (mapper_->scan_optimizer_ != nullptr) {
                         mapper_->scan_optimizer_->addConstraint(edge);
                 }

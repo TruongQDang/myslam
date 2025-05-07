@@ -20,9 +20,11 @@ namespace karto
 
 typedef std::vector<LocalizedRangeScan *> LocalizedRangeScanVector;
 typedef std::map<int, LocalizedRangeScan *> LocalizedRangeScanMap;
-typedef std::vector<Vector2<double>> PointVectorDouble;
 
-//////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+
 template <typename T>
 class Vertex;
 class LinkInfo;
@@ -33,7 +35,7 @@ class Edge
 private:
         Vertex<T> *source_;
         Vertex<T> *target_;
-        LinkInfo *label_;
+        std::unique_ptr<LinkInfo> label_;
 
 public:
         Edge(Vertex<T> *source, Vertex<T> *target)
@@ -57,11 +59,11 @@ public:
 
         /**
          * Sets the link payload
-         * @param pLabel
+         * @param label
          */
-        inline void setLabel(LinkInfo *label)
+        inline void setLabel(std::unique_ptr<LinkInfo> label)
         {
-                label_ = label;
+                label_ = std::move(label);
         }
 
         /**
@@ -70,7 +72,7 @@ public:
          */
         inline LinkInfo *getLabel()
         {
-                return label_;
+                return label_.get();
         }
 
         /**

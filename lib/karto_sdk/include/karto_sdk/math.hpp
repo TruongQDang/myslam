@@ -20,7 +20,6 @@ const double KT_TOLERANCE = 1e-06;
 const double KT_PI = 3.14159265358979323846;
 const double KT_PI_180 = 0.01745329251994329577; // PI / 180
 const double KT_180_PI = 57.29577951308232087685; // 180 / PI
-const double KT_PI_180 = 0.01745329251994329577;  // PI / 180
 const double KT_2PI = 6.28318530717958647692;     // 2 * PI
 
 /**

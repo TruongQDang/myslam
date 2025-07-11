@@ -109,6 +109,9 @@ protected:
         boost::mutex map_to_odom_mutex_, mapper_mutex_, pose_mutex_;
         nav_msgs::srv::GetMap::Response map_;
 
+        // For temp logging
+        std::string filename_;
+
 };
 
 } // namespace myslam

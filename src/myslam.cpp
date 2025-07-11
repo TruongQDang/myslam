@@ -1,5 +1,10 @@
 #include "myslam/myslam.hpp"
 #include "solvers/ceres_solver.hpp"
+#include <iostream>
+#include <fstream>
+#include <ctime>
+#include <chrono>
+#include <filesystem>
 
 namespace myslam
 {
@@ -37,6 +42,20 @@ MySlam::MySlam(rclcpp::NodeOptions options)
 void MySlam::laserCallback(sensor_msgs::msg::LaserScan::ConstSharedPtr scan)
 /*****************************************************************************/
 {
+        const std::string path = "/home/truongdang/Documents/graduation_project/data_log/";
+        const std::string fullpath = path + filename_;
+        bool file_exists = std::filesystem::exists(fullpath);
+        std::ofstream logfile(fullpath, std::ios::app); // Append mode
+        if (!logfile.is_open())
+        {
+                std::cerr << "Failed to open log file: " << fullpath << "\n";
+        }
+
+        if (!file_exists)
+        {
+                logfile << "timestamp,duration_ms\n"; // Write header only once
+        }
+
         // get transform from odom to base
         scan_header_ = scan->header;
         karto::Pose2 odom_pose;
@@ -51,7 +70,13 @@ void MySlam::laserCallback(sensor_msgs::msg::LaserScan::ConstSharedPtr scan)
         }
 
         if (shouldProcessScan(scan, odom_pose)) {
+                auto start = std::chrono::high_resolution_clock::now();
                 addScan(scan, odom_pose);
+                auto end = std::chrono::high_resolution_clock::now();
+                double duration_ms = std::chrono::duration<double, std::milli>(end - start).count();
+
+                std::time_t now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+                logfile << now << "," << duration_ms << "\n";
         }
 }
 
@@ -214,6 +239,14 @@ MySlam::~MySlam()
 void MySlam::setParams()
 /*****************************************************************************/
 {
+        /* For temp logging */
+        if (!this->has_parameter("filename"))
+        {
+                this->declare_parameter("filename", "logging_file.csv");
+        }
+        filename_ = this->get_parameter("filename").as_string();
+        /* End logging*/
+
         map_to_odom_.setIdentity();
         odom_frame_ = std::string("odom");
         if (!this->has_parameter("odom_frame"))

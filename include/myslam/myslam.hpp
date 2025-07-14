@@ -111,7 +111,7 @@ protected:
 
         // For temp logging
         std::string filename_;
-
+        int vertex_count_= 0;
 };
 
 } // namespace myslam

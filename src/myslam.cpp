@@ -53,7 +53,7 @@ void MySlam::laserCallback(sensor_msgs::msg::LaserScan::ConstSharedPtr scan)
 
         if (!file_exists)
         {
-                logfile << "timestamp,duration_ms\n"; // Write header only once
+                logfile << "number_of_vertices,duration_ms\n"; // Write header only once
         }
 
         // get transform from odom to base
@@ -75,8 +75,8 @@ void MySlam::laserCallback(sensor_msgs::msg::LaserScan::ConstSharedPtr scan)
                 auto end = std::chrono::high_resolution_clock::now();
                 double duration_ms = std::chrono::duration<double, std::milli>(end - start).count();
 
-                std::time_t now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-                logfile << now << "," << duration_ms << "\n";
+                vertex_count_++;
+                logfile << vertex_count_ << "," << duration_ms << "\n";
         }
 }
 

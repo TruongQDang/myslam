@@ -76,4 +76,4 @@ myslam:
     occupancy_threshold: 0.1
 
     # file name for logging
-    filename: trial2.csv
+    filename: trial1.csv

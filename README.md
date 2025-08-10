@@ -1,22 +1,25 @@
 # LiDAR-based SLAM
-This is a minimal LiDAR SLAM based on SLAM Toolbox and Karto SLAM. It is only capable of processing scans from a single LiDAR.
+This repository provides a minimal LiDAR-based SLAM implementation, leveraging SLAM Toolbox and Karto SLAM.
+It currently supports processing scan data from a single LiDAR sensor.
 
 ## Project Structure
-The project is organized as follows:
+The project is organized into the following components:
 
 ![](docs/architecture.png)
 
-It consists of a ROS2 wrapper, a standalone SLAM library, and CeresSolver as back-end optmization.
+- ROS 2 Wrapper – Integrates the SLAM library into the ROS 2 ecosystem.
+- Standalone SLAM Library – Implements the core SLAM logic.
+- Ceres Solver – Serves as the back-end optimization engine.
 
 ## SLAM
 The SLAM library is organized as follows:
 
 ![](docs/slam_architecture.png)
 
-It consists of several main classes:
-- `Mapper` acts as the main interface to accept inputs and return outputs of the system.
-- `ScanManager` handles keeping track of incoming laser scans.
-- `ScanMatcher` handles scan matching, crucial for correcting odometry as well as loop closure validation.
-- `MapperGraph` handle graph construction and loop search.
-- `OccupancyGrid` returns occupancy grid map built from a list of laser scans and robot's poses.
-- `ScanSolver` is a interface class with virtual functions to allow for flexibility in choosing whichever optimization library that users may wish.
+Core classes:
+- `Mapper` - Main interface for receiving input data and producing SLAM outputs.
+- `ScanManager` - Manages incoming laser scan data.
+- `ScanMatcher` - Performs scan matching, essential for odometry correction and loop closure validation.
+- `MapperGraph` – Handles graph construction and loop detection.
+- `OccupancyGrid` – Generates an occupancy grid map from recorded scans and robot poses.
+- `ScanSolver` – Abstract interface enabling integration with various optimization back-ends.

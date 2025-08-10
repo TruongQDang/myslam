@@ -24,7 +24,7 @@ Core classes:
 - `OccupancyGrid` – Generates an occupancy grid map from recorded scans and robot poses.
 - `ScanSolver` – Abstract interface enabling integration with various optimization back-ends.
 
-## Mobile Robots
+## Mobile Robot
 The entire project is tested and verified on a mobile robot that I built:
 
 ![](docs/front_robot.jpg)

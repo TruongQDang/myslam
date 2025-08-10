@@ -23,3 +23,8 @@ Core classes:
 - `MapperGraph` – Handles graph construction and loop detection.
 - `OccupancyGrid` – Generates an occupancy grid map from recorded scans and robot poses.
 - `ScanSolver` – Abstract interface enabling integration with various optimization back-ends.
+
+## Mobile Robots
+The entire project is tested and verified on a mobile robot that I built:
+
+![](docs/front_robot.jpg)
